@@ -12,13 +12,15 @@ function App() {
   const [walletName, setWalletName] = useState('')
   const [walletInitial, setWalletInitial] = useState<number>(0)
 
+  const [keepAmount, setKeepAmount] = useState<number>(0)
+
   const [entries, setEntries] = useState<LedgerEntry[]>([])
   const [entryWalletId, setEntryWalletId] = useState('')
   const [entryLabel, setEntryLabel] = useState('')
   const [entryAmount, setEntryAmount] = useState<number>(0)
   const [entryType, setEntryType] = useState<'expense' | 'income'>('expense')
 
-  // ② バレットジャーナル
+  // ② 出費予定
   const [bulletItems, setBulletItems] = useState<BulletItem[]>([])
   const [bulletName, setBulletName] = useState('')
   const [bulletCost, setBulletCost] = useState<number>(0)
@@ -73,6 +75,7 @@ function App() {
   }
 
   const totalBalance = wallets.reduce((s, w) => s + w.balance, 0)
+  const usableBalance = totalBalance - keepAmount
 
   // ② バレットジャーナル
   function addBulletItem() {
@@ -88,10 +91,8 @@ function App() {
     setBulletCost(0)
   }
 
-  function deductItem(id: string) {
-    const item = bulletItems.find(i => i.id === id)
-    if (!item || item.deducted) return
-    setBulletItems(prev => prev.map(i => i.id === id ? { ...i, deducted: true } : i))
+  function toggleDeduct(id: string) {
+    setBulletItems(prev => prev.map(i => i.id === id ? { ...i, deducted: !i.deducted } : i))
   }
 
   function removeBulletItem(id: string) {
@@ -100,7 +101,7 @@ function App() {
 
   const totalDeducted = bulletItems.filter(i => i.deducted).reduce((s, i) => s + i.estimatedCost, 0)
   const totalPending = bulletItems.filter(i => !i.deducted).reduce((s, i) => s + i.estimatedCost, 0)
-  const remainingBudget = totalBalance + bonusBalance - totalDeducted
+  const remainingBudget = usableBalance + bonusBalance - totalDeducted
 
   // ③ お布施ボーナス
   function addTask() {
@@ -171,7 +172,24 @@ function App() {
                 </li>
               ))}
             </ul>
-            <div className="summary">合計: <strong>{totalBalance.toLocaleString()}円</strong></div>
+            <div className="summary">手元残高合計: <strong>{totalBalance.toLocaleString()}円</strong></div>
+            <div className="keep-row">
+              <label>
+                キープ額:
+                <input
+                  type="number"
+                  value={keepAmount || ''}
+                  onChange={e => setKeepAmount(Number(e.target.value))}
+                  placeholder="0"
+                />
+              </label>
+            </div>
+            <div className="summary">
+              使える残高:{' '}
+              <strong className={usableBalance < 0 ? 'remaining-negative' : 'remaining-positive'}>
+                {usableBalance.toLocaleString()}円
+              </strong>
+            </div>
           </div>
         )}
 
@@ -265,7 +283,9 @@ function App() {
                 <span className={`item-name${item.deducted ? ' deducted' : ''}`}>
                   {item.deducted ? '✓' : '•'} {item.name} — {item.estimatedCost.toLocaleString()}円
                 </span>
-                {!item.deducted && <button onClick={() => deductItem(item.id)}>引く</button>}
+                <button onClick={() => toggleDeduct(item.id)}>
+                  {item.deducted ? '外す' : '引く'}
+                </button>
                 <button onClick={() => removeBulletItem(item.id)}>削除</button>
               </li>
             ))}

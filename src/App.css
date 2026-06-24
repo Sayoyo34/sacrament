@@ -103,6 +103,19 @@
   font-size: 0.9em;
 }
 
+.keep-row {
+  margin: 0.3rem 0;
+}
+
+.keep-row label {
+  font-size: 0.95em;
+}
+
+.keep-row input {
+  margin-left: 0.5rem;
+  width: 130px;
+}
+
 .bonus-preview {
   font-size: 0.9em;
   margin: 0.25rem 0 0.5rem;
