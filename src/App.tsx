@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import type { Wallet, LedgerEntry, BulletItem, Task } from './types'
+import { useState, useEffect, useRef } from 'react'
+import type { Wallet, LedgerEntry, BulletItem, Task, TimerPreset, ActiveTimer } from './types'
 import './App.css'
 
 function generateId() {
@@ -132,6 +132,88 @@ function App() {
     }
     setTasks(prev => prev.filter(t => t.id !== id))
   }
+
+  // ④ 礼拝タイマー
+  const DEFAULT_PRESETS: TimerPreset[] = [
+    { id: 'p10', name: '準備運動', minutes: 10 },
+    { id: 'p25', name: 'スパッと', minutes: 25 },
+    { id: 'p60', name: 'じっくり', minutes: 60 },
+  ]
+  const [presets, setPresets] = useState<TimerPreset[]>(DEFAULT_PRESETS)
+  const [activeTimer, setActiveTimer] = useState<ActiveTimer | null>(null)
+  const [isPaused, setIsPaused] = useState(false)
+  const [timerDone, setTimerDone] = useState(false)
+  const [totalMinutes, setTotalMinutes] = useState(0)
+  const [bonusRate, setBonusRate] = useState(100) // 円 per 10分
+  const [editingPreset, setEditingPreset] = useState<TimerPreset | null>(null)
+  const [newPresetName, setNewPresetName] = useState('')
+  const [newPresetMinutes, setNewPresetMinutes] = useState<number>(0)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    if (activeTimer && !isPaused) {
+      intervalRef.current = setInterval(() => {
+        setActiveTimer(prev => {
+          if (!prev) return null
+          if (prev.remaining <= 1) {
+            clearInterval(intervalRef.current!)
+            const completedMinutes = Math.floor(prev.totalSeconds / 60)
+            setTotalMinutes(m => {
+              const newTotal = m + completedMinutes
+              const bonus = Math.floor(newTotal / 10) * bonusRate - Math.floor(m / 10) * bonusRate
+              if (bonus > 0) setBonusBalance(b => b + bonus)
+              return newTotal
+            })
+            setTimerDone(true)
+            return null
+          }
+          return { ...prev, remaining: prev.remaining - 1 }
+        })
+      }, 1000)
+    } else {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [activeTimer?.presetId, isPaused, bonusRate])
+
+  function startTimer(preset: TimerPreset) {
+    setTimerDone(false)
+    setIsPaused(false)
+    setActiveTimer({ presetId: preset.id, totalSeconds: preset.minutes * 60, remaining: preset.minutes * 60 })
+  }
+
+  function cancelTimer() {
+    setActiveTimer(null)
+    setIsPaused(false)
+    setTimerDone(false)
+  }
+
+  function addPreset() {
+    if (!newPresetName.trim() || newPresetMinutes <= 0) return
+    setPresets(prev => [...prev, { id: generateId(), name: newPresetName.trim(), minutes: newPresetMinutes }])
+    setNewPresetName('')
+    setNewPresetMinutes(0)
+  }
+
+  function saveEditPreset() {
+    if (!editingPreset) return
+    setPresets(prev => prev.map(p => p.id === editingPreset.id ? editingPreset : p))
+    setEditingPreset(null)
+  }
+
+  function removePreset(id: string) {
+    setPresets(prev => prev.filter(p => p.id !== id))
+    if (activeTimer?.presetId === id) cancelTimer()
+  }
+
+  function formatTime(seconds: number) {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0')
+    const s = (seconds % 60).toString().padStart(2, '0')
+    return `${m}:${s}`
+  }
+
+  const earnedBonus = Math.floor(totalMinutes / 10) * bonusRate
+  const activePreset = presets.find(p => p.id === activeTimer?.presetId)
 
   return (
     <div className="app">
@@ -336,6 +418,112 @@ function App() {
         <p>
           💰 累計ボーナス残高: <strong>{bonusBalance.toLocaleString()}円</strong>
         </p>
+      </section>
+
+      {/* ④ 礼拝タイマー */}
+      <section className="section">
+        <h2>④ 礼拝タイマー</h2>
+        <p className="description">
+          タイマーを使った合計時間に応じてボーナスが加算されます。
+        </p>
+
+        {/* レート設定 */}
+        <div className="subsection">
+          <label className="keep-row">
+            レート: 10分 =
+            <input
+              type="number"
+              value={bonusRate}
+              onChange={e => setBonusRate(Number(e.target.value))}
+              min={100}
+              step={100}
+              style={{ width: 80 }}
+            />
+            円
+          </label>
+          <div className="summary" style={{ marginTop: '0.3rem' }}>
+            累計: {totalMinutes}分 → 獲得ボーナス: <strong>{earnedBonus.toLocaleString()}円</strong>
+          </div>
+        </div>
+
+        {/* タイマー本体 */}
+        <div className="subsection">
+          {activeTimer ? (
+            <div className="timer-active">
+              <div className="timer-display">{formatTime(activeTimer.remaining)}</div>
+              <div className="timer-label">{activePreset?.name}</div>
+              <button onClick={() => setIsPaused(p => !p)}>
+                {isPaused ? '再開' : '一時停止'}
+              </button>
+              <button onClick={cancelTimer}>キャンセル</button>
+            </div>
+          ) : (
+            <div className="timer-presets">
+              {presets.map(preset => (
+                <div key={preset.id} className="preset-row">
+                  {editingPreset?.id === preset.id ? (
+                    <>
+                      <input
+                        value={editingPreset.name}
+                        onChange={e => setEditingPreset({ ...editingPreset, name: e.target.value })}
+                        style={{ width: 80 }}
+                      />
+                      <input
+                        type="number"
+                        value={editingPreset.minutes}
+                        onChange={e => setEditingPreset({ ...editingPreset, minutes: Number(e.target.value) })}
+                        style={{ width: 60 }}
+                      />
+                      分
+                      <button onClick={saveEditPreset}>保存</button>
+                      <button onClick={() => setEditingPreset(null)}>キャンセル</button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="timer-btn" onClick={() => startTimer(preset)}>
+                        <span className="preset-name">{preset.name}</span>
+                        <span className="preset-minutes">{preset.minutes}分</span>
+                      </button>
+                      <button onClick={() => setEditingPreset({ ...preset })}>編集</button>
+                      <button onClick={() => removePreset(preset.id)}>削除</button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 完了通知 */}
+        {timerDone && (
+          <div className="timer-done">
+            ✨ タイマー完了！お疲れさまでした
+            <button onClick={() => setTimerDone(false)}>閉じる</button>
+          </div>
+        )}
+
+        {/* プリセット追加 */}
+        <div className="subsection">
+          <h3>タイマーを追加</h3>
+          <div className="input-row">
+            <input
+              value={newPresetName}
+              onChange={e => setNewPresetName(e.target.value)}
+              placeholder="名前"
+              style={{ width: 80 }}
+            />
+            <input
+              type="number"
+              value={newPresetMinutes || ''}
+              onChange={e => setNewPresetMinutes(Number(e.target.value))}
+              placeholder="分"
+              min={1}
+              style={{ width: 60 }}
+            />
+            分
+            <button onClick={addPreset}>追加</button>
+          </div>
+        </div>
       </section>
     </div>
   )

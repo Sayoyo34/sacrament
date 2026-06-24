@@ -18,6 +18,18 @@ export interface BulletItem {
   deducted: boolean;
 }
 
+export interface TimerPreset {
+  id: string;
+  name: string;
+  minutes: number;
+}
+
+export interface ActiveTimer {
+  presetId: string;
+  totalSeconds: number;
+  remaining: number;   // seconds
+}
+
 export interface Task {
   id: string;
   name: string;
