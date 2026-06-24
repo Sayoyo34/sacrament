@@ -1,24 +1,27 @@
 import { useState } from 'react'
-import type { BulletItem, Task } from './types'
+import type { Wallet, LedgerEntry, BulletItem, Task } from './types'
 import './App.css'
-
-const SAVINGS_RATE = 0.3
 
 function generateId() {
   return Math.random().toString(36).slice(2)
 }
 
 function App() {
-  // ① 砦設定
-  const [monthlyIncome, setMonthlyIncome] = useState<number>(0)
-  const [savingsTarget, setSavingsTarget] = useState<number>(0)
-  const [hobbyBudget, setHobbyBudget] = useState<number | null>(null)
+  // ① 家計簿
+  const [wallets, setWallets] = useState<Wallet[]>([])
+  const [walletName, setWalletName] = useState('')
+  const [walletInitial, setWalletInitial] = useState<number>(0)
+
+  const [entries, setEntries] = useState<LedgerEntry[]>([])
+  const [entryWalletId, setEntryWalletId] = useState('')
+  const [entryLabel, setEntryLabel] = useState('')
+  const [entryAmount, setEntryAmount] = useState<number>(0)
+  const [entryType, setEntryType] = useState<'expense' | 'income'>('expense')
 
   // ② バレットジャーナル
   const [bulletItems, setBulletItems] = useState<BulletItem[]>([])
   const [bulletName, setBulletName] = useState('')
   const [bulletCost, setBulletCost] = useState<number>(0)
-  const [remainingBudget, setRemainingBudget] = useState<number | null>(null)
 
   // ③ お布施ボーナス
   const [tasks, setTasks] = useState<Task[]>([])
@@ -26,12 +29,52 @@ function App() {
   const [taskBonus, setTaskBonus] = useState<number>(0)
   const [bonusBalance, setBonusBalance] = useState<number>(0)
 
-  function calcHobbyBudget() {
-    const budget = monthlyIncome - savingsTarget
-    setHobbyBudget(budget)
-    setRemainingBudget(budget + bonusBalance)
+  // ウォレット追加
+  function addWallet() {
+    if (!walletName.trim()) return
+    const wallet: Wallet = {
+      id: generateId(),
+      name: walletName.trim(),
+      balance: walletInitial,
+    }
+    setWallets(prev => [...prev, wallet])
+    if (entryWalletId === '') setEntryWalletId(wallet.id)
+    setWalletName('')
+    setWalletInitial(0)
   }
 
+  function removeWallet(id: string) {
+    setWallets(prev => prev.filter(w => w.id !== id))
+    setEntries(prev => prev.filter(e => e.walletId !== id))
+    if (entryWalletId === id) setEntryWalletId('')
+  }
+
+  // 取引追加
+  function addEntry() {
+    if (!entryLabel.trim() || !entryWalletId || entryAmount === 0) return
+    const signed = entryType === 'expense' ? -Math.abs(entryAmount) : Math.abs(entryAmount)
+    const entry: LedgerEntry = {
+      id: generateId(),
+      walletId: entryWalletId,
+      label: entryLabel.trim(),
+      amount: signed,
+    }
+    setEntries(prev => [...prev, entry])
+    setWallets(prev => prev.map(w => w.id === entryWalletId ? { ...w, balance: w.balance + signed } : w))
+    setEntryLabel('')
+    setEntryAmount(0)
+  }
+
+  function removeEntry(id: string) {
+    const entry = entries.find(e => e.id === id)
+    if (!entry) return
+    setEntries(prev => prev.filter(e => e.id !== id))
+    setWallets(prev => prev.map(w => w.id === entry.walletId ? { ...w, balance: w.balance - entry.amount } : w))
+  }
+
+  const totalBalance = wallets.reduce((s, w) => s + w.balance, 0)
+
+  // ② バレットジャーナル
   function addBulletItem() {
     if (!bulletName.trim()) return
     const item: BulletItem = {
@@ -49,17 +92,17 @@ function App() {
     const item = bulletItems.find(i => i.id === id)
     if (!item || item.deducted) return
     setBulletItems(prev => prev.map(i => i.id === id ? { ...i, deducted: true } : i))
-    setRemainingBudget(prev => prev !== null ? prev - item.estimatedCost : null)
   }
 
   function removeBulletItem(id: string) {
-    const item = bulletItems.find(i => i.id === id)
-    if (item?.deducted) {
-      setRemainingBudget(prev => prev !== null ? prev + item.estimatedCost : null)
-    }
     setBulletItems(prev => prev.filter(i => i.id !== id))
   }
 
+  const totalDeducted = bulletItems.filter(i => i.deducted).reduce((s, i) => s + i.estimatedCost, 0)
+  const totalPending = bulletItems.filter(i => !i.deducted).reduce((s, i) => s + i.estimatedCost, 0)
+  const remainingBudget = totalBalance + bonusBalance - totalDeducted
+
+  // ③ お布施ボーナス
   function addTask() {
     if (!taskName.trim()) return
     const task: Task = {
@@ -79,74 +122,130 @@ function App() {
     if (!task || task.completed) return
     setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: true, bonusApplied: true } : t))
     setBonusBalance(prev => prev + task.bonusAmount)
-    setRemainingBudget(prev => prev !== null ? prev + task.bonusAmount : null)
   }
 
   function removeTask(id: string) {
     const task = tasks.find(t => t.id === id)
     if (task?.bonusApplied) {
       setBonusBalance(prev => prev - task.bonusAmount)
-      setRemainingBudget(prev => prev !== null ? prev - task.bonusAmount : null)
     }
     setTasks(prev => prev.filter(t => t.id !== id))
   }
-
-  const totalDeducted = bulletItems.filter(i => i.deducted).reduce((s, i) => s + i.estimatedCost, 0)
-  const totalPending = bulletItems.filter(i => !i.deducted).reduce((s, i) => s + i.estimatedCost, 0)
 
   return (
     <div className="app">
       <h1>推し活費用管理</h1>
 
-      {/* ① 砦設定 */}
+      {/* ① 家計簿 */}
       <section className="section">
-        <h2>① 砦設定</h2>
-        <div className="field-group">
-          <label>
-            月収 (円):
+        <h2>① 家計簿</h2>
+
+        <div className="subsection">
+          <h3>支払い方法を追加</h3>
+          <div className="input-row">
+            <input
+              value={walletName}
+              onChange={e => setWalletName(e.target.value)}
+              placeholder="名前（現金・PayPay・クレカ…）"
+            />
             <input
               type="number"
-              value={monthlyIncome || ''}
-              onChange={e => setMonthlyIncome(Number(e.target.value))}
+              value={walletInitial || ''}
+              onChange={e => setWalletInitial(Number(e.target.value))}
+              placeholder="初期残高"
             />
-          </label>
-          <label>
-            貯金額 (円):
-            <input
-              type="number"
-              value={savingsTarget || ''}
-              onChange={e => setSavingsTarget(Number(e.target.value))}
-            />
-            {monthlyIncome > 0 && (
-              <button onClick={() => setSavingsTarget(Math.floor(monthlyIncome * SAVINGS_RATE))}>
-                推奨値 ({Math.floor(monthlyIncome * SAVINGS_RATE).toLocaleString()}円)
-              </button>
-            )}
-          </label>
-          <button className="calc-button" onClick={calcHobbyBudget}>
-            趣味費用許容額を計算
-          </button>
-          {hobbyBudget !== null && (
-            <p>
-              📦 許容額: <strong>{hobbyBudget.toLocaleString()}円</strong>
-              {bonusBalance > 0 && <> + ボーナス <strong>{bonusBalance.toLocaleString()}円</strong></>}
-              {' '}→ 残り{' '}
-              <strong className={(remainingBudget ?? 0) < 0 ? 'remaining-negative' : 'remaining-positive'}>
-                {(remainingBudget ?? 0).toLocaleString()}円
-              </strong>
-            </p>
-          )}
+            <button onClick={addWallet}>追加</button>
+          </div>
         </div>
+
+        {wallets.length > 0 && (
+          <div className="subsection">
+            <h3>残高一覧</h3>
+            <ul className="item-list">
+              {wallets.map(w => (
+                <li key={w.id} className="item-row">
+                  <span className="item-name">
+                    {w.name}: <strong className={w.balance < 0 ? 'remaining-negative' : ''}>{w.balance.toLocaleString()}円</strong>
+                  </span>
+                  <button onClick={() => removeWallet(w.id)}>削除</button>
+                </li>
+              ))}
+            </ul>
+            <div className="summary">合計: <strong>{totalBalance.toLocaleString()}円</strong></div>
+          </div>
+        )}
+
+        {wallets.length > 0 && (
+          <div className="subsection">
+            <h3>取引を記録</h3>
+            <div className="input-row">
+              <select
+                value={entryWalletId}
+                onChange={e => setEntryWalletId(e.target.value)}
+              >
+                <option value="" disabled>支払い方法</option>
+                {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+              <input
+                value={entryLabel}
+                onChange={e => setEntryLabel(e.target.value)}
+                placeholder="項目名"
+              />
+              <input
+                type="number"
+                value={entryAmount || ''}
+                onChange={e => setEntryAmount(Number(e.target.value))}
+                placeholder="金額"
+                min={0}
+              />
+              <select
+                value={entryType}
+                onChange={e => setEntryType(e.target.value as 'expense' | 'income')}
+              >
+                <option value="expense">支出</option>
+                <option value="income">収入</option>
+              </select>
+              <button onClick={addEntry}>記録</button>
+            </div>
+
+            {entries.length > 0 && (
+              <ul className="item-list" style={{ marginTop: '0.5rem' }}>
+                {entries.map(e => {
+                  const wallet = wallets.find(w => w.id === e.walletId)
+                  return (
+                    <li key={e.id} className="item-row">
+                      <span className="item-name">
+                        [{wallet?.name}] {e.label}:{' '}
+                        <span className={e.amount < 0 ? 'remaining-negative' : 'remaining-positive'}>
+                          {e.amount > 0 ? '+' : ''}{e.amount.toLocaleString()}円
+                        </span>
+                      </span>
+                      <button onClick={() => removeEntry(e.id)}>削除</button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        )}
       </section>
 
-      {/* ② 今後の出費予定 */}
+      {/* ② 出費予定 */}
       <section className="section">
-        <h2>② 今後の出費予定</h2>
+        <h2>② 出費予定</h2>
+        {wallets.length > 0 && (
+          <p className="summary" style={{ marginBottom: '0.5rem' }}>
+            残り使える金額:{' '}
+            <strong className={remainingBudget < 0 ? 'remaining-negative' : 'remaining-positive'}>
+              {remainingBudget.toLocaleString()}円
+            </strong>
+            {bonusBalance > 0 && <span>（うちボーナス {bonusBalance.toLocaleString()}円）</span>}
+          </p>
+        )}
         <div className="input-row">
           <input
             value={bulletName}
             onChange={e => setBulletName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addBulletItem()}
             placeholder="予定名"
           />
           <input
@@ -189,7 +288,6 @@ function App() {
           <input
             value={taskName}
             onChange={e => setTaskName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addTask()}
             placeholder="タスク名"
           />
           <input
