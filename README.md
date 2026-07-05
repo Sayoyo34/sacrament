@@ -1,32 +1,47 @@
-# React + TypeScript + Vite
+# 推し活費用管理（sacrament）
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+推し活にかかる費用を管理するためのWebアプリです。React + TypeScript + Viteで作られています。
 
-Currently, two official plugins are available:
+## 主な機能
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### ① 家計簿
+- 支払い方法（現金・PayPay・クレカなど）を複数登録できます
+- 支払い方法ごとの残高を管理し、取引（収入・支出）を記録できます
+- 「キープ額」を設定すると、手元残高からキープ額を引いた「使える残高」が表示されます
 
-## React Compiler
+### ② 出費予定
+- 今後使う予定の項目（グッズ代など）と予測金額を登録できます
+- 「全額引く」ボタンで予測金額を丸ごと使用済み扱いにできます
+- 「一部引く」ボタンで、金額を指定して一部だけ使用済みにできます（複数回に分けても可）
+- 「外す」ボタンで引いた分をリセットできます
+- 使える残高・お布施ボーナスから出費予定を差し引いた「残り使える金額」が表示されます
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### ③ お布施ボーナス
+- リアルタスクを登録し、「達成！」を押すとボーナス額が累計ボーナス残高に加算されます
+- 累計ボーナスは出費予定の残り使える金額に上乗せされます
 
-## Expanding the Oxlint configuration
+### ④ 礼拝タイマー
+- プリセット（準備運動10分・スパッと25分・じっくり60分など）からタイマーを開始できます
+- タイマーは一時停止・キャンセルが可能で、プリセット自体の追加・編集・削除もできます
+- 使った時間の合計に応じて、設定したレート（10分あたりの金額）でボーナスが加算されます
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## セットアップ
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install       # 依存関係のインストール
+npm run dev       # 開発サーバーを起動（http://localhost:5173）
+npm run build     # 本番用ビルド
+npm run preview   # ビルド結果をローカルでプレビュー
+npm run lint      # oxlintによるコードチェック
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## 技術スタック
+
+- React 19
+- TypeScript
+- Vite
+- oxlint（Lint）
+
+## 注意事項
+
+現時点ではデータはブラウザのメモリ上にのみ保持されます。ページを再読み込みすると入力内容はリセットされるため、永続的に保存したい場合は別途データ保存の仕組みを追加する必要があります。
