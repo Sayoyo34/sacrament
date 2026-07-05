@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { Fragment, useState, useEffect, useRef } from 'react'
 import type { Wallet, LedgerEntry, BulletItem, Task, TimerPreset, ActiveTimer } from './types'
 import './App.css'
 
@@ -24,6 +24,8 @@ function App() {
   const [bulletItems, setBulletItems] = useState<BulletItem[]>([])
   const [bulletName, setBulletName] = useState('')
   const [bulletCost, setBulletCost] = useState<number>(0)
+  const [partialInputId, setPartialInputId] = useState<string | null>(null)
+  const [partialAmount, setPartialAmount] = useState<number>(0)
 
   // ③ お布施ボーナス
   const [tasks, setTasks] = useState<Task[]>([])
@@ -84,23 +86,57 @@ function App() {
       id: generateId(),
       name: bulletName.trim(),
       estimatedCost: bulletCost,
-      deducted: false,
+      deductedAmount: 0,
     }
     setBulletItems(prev => [...prev, item])
     setBulletName('')
     setBulletCost(0)
   }
 
-  function toggleDeduct(id: string) {
-    setBulletItems(prev => prev.map(i => i.id === id ? { ...i, deducted: !i.deducted } : i))
+  // 全額引く
+  function deductFull(id: string) {
+    setBulletItems(prev => prev.map(i => i.id === id ? { ...i, deductedAmount: i.estimatedCost } : i))
+    if (partialInputId === id) {
+      setPartialInputId(null)
+      setPartialAmount(0)
+    }
+  }
+
+  // 引いた分を外す（0に戻す）
+  function undoDeduct(id: string) {
+    setBulletItems(prev => prev.map(i => i.id === id ? { ...i, deductedAmount: 0 } : i))
+  }
+
+  // 一部引く入力欄を開く
+  function openPartialInput(id: string) {
+    setPartialInputId(id)
+    setPartialAmount(0)
+  }
+
+  function cancelPartialInput() {
+    setPartialInputId(null)
+    setPartialAmount(0)
+  }
+
+  // 一部引くを確定
+  function confirmPartialDeduct(id: string) {
+    if (partialAmount <= 0) return
+    setBulletItems(prev => prev.map(i => {
+      if (i.id !== id) return i
+      const nextAmount = Math.min(i.estimatedCost, i.deductedAmount + partialAmount)
+      return { ...i, deductedAmount: nextAmount }
+    }))
+    setPartialInputId(null)
+    setPartialAmount(0)
   }
 
   function removeBulletItem(id: string) {
     setBulletItems(prev => prev.filter(i => i.id !== id))
+    if (partialInputId === id) cancelPartialInput()
   }
 
-  const totalDeducted = bulletItems.filter(i => i.deducted).reduce((s, i) => s + i.estimatedCost, 0)
-  const totalPending = bulletItems.filter(i => !i.deducted).reduce((s, i) => s + i.estimatedCost, 0)
+  const totalDeducted = bulletItems.reduce((s, i) => s + i.deductedAmount, 0)
+  const totalPending = bulletItems.reduce((s, i) => s + (i.estimatedCost - i.deductedAmount), 0)
   const remainingBudget = usableBalance + bonusBalance - totalDeducted
 
   // ③ お布施ボーナス
@@ -360,17 +396,46 @@ function App() {
           <p className="empty-hint">まだ予定がありません</p>
         ) : (
           <ul className="item-list">
-            {bulletItems.map(item => (
-              <li key={item.id} className="item-row">
-                <span className={`item-name${item.deducted ? ' deducted' : ''}`}>
-                  {item.deducted ? '✓' : '•'} {item.name} — {item.estimatedCost.toLocaleString()}円
-                </span>
-                <button onClick={() => toggleDeduct(item.id)}>
-                  {item.deducted ? '外す' : '引く'}
-                </button>
-                <button onClick={() => removeBulletItem(item.id)}>削除</button>
-              </li>
-            ))}
+            {bulletItems.map(item => {
+              const fullyDeducted = item.deductedAmount > 0 && item.deductedAmount >= item.estimatedCost
+              const partiallyDeducted = item.deductedAmount > 0 && item.deductedAmount < item.estimatedCost
+              const remaining = item.estimatedCost - item.deductedAmount
+              return (
+                <Fragment key={item.id}>
+                  <li className="item-row">
+                    <span className={`item-name${fullyDeducted ? ' deducted' : partiallyDeducted ? ' partial' : ''}`}>
+                      {fullyDeducted ? '✓' : partiallyDeducted ? '◐' : '•'} {item.name} — {item.estimatedCost.toLocaleString()}円
+                      {partiallyDeducted && ` （引済 ${item.deductedAmount.toLocaleString()}円 / 残り ${remaining.toLocaleString()}円）`}
+                    </span>
+                    {fullyDeducted ? (
+                      <button onClick={() => undoDeduct(item.id)}>外す</button>
+                    ) : (
+                      <>
+                        <button onClick={() => deductFull(item.id)}>全額引く</button>
+                        <button onClick={() => openPartialInput(item.id)}>一部引く</button>
+                        {partiallyDeducted && <button onClick={() => undoDeduct(item.id)}>外す</button>}
+                      </>
+                    )}
+                    <button onClick={() => removeBulletItem(item.id)}>削除</button>
+                  </li>
+                  {partialInputId === item.id && (
+                    <li className="item-row partial-input-row">
+                      <input
+                        type="number"
+                        value={partialAmount || ''}
+                        onChange={e => setPartialAmount(Number(e.target.value))}
+                        placeholder="引く金額"
+                        min={0}
+                        max={remaining}
+                        style={{ width: 100 }}
+                      />
+                      <button onClick={() => confirmPartialDeduct(item.id)}>確定</button>
+                      <button onClick={cancelPartialInput}>キャンセル</button>
+                    </li>
+                  )}
+                </Fragment>
+              )
+            })}
           </ul>
         )}
         {bulletItems.length > 0 && (

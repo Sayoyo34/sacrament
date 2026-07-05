@@ -93,6 +93,14 @@
   text-decoration: line-through;
 }
 
+.item-name.partial {
+  color: #b8860b;
+}
+
+.partial-input-row {
+  margin-left: 1.5rem;
+}
+
 .summary {
   font-size: 0.9em;
   color: #555;

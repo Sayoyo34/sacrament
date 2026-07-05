@@ -15,7 +15,7 @@ export interface BulletItem {
   id: string;
   name: string;
   estimatedCost: number;
-  deducted: boolean;
+  deductedAmount: number;  // 既に引いた金額（0=未引き, estimatedCost以上=引き済み）
 }
 
 export interface TimerPreset {
