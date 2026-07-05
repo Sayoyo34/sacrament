@@ -12,8 +12,6 @@ function App() {
   const [walletName, setWalletName] = useState('')
   const [walletInitial, setWalletInitial] = useState<number>(0)
 
-  const [keepAmount, setKeepAmount] = useState<number>(0)
-
   const [entries, setEntries] = useState<LedgerEntry[]>([])
   const [entryWalletId, setEntryWalletId] = useState('')
   const [entryLabel, setEntryLabel] = useState('')
@@ -77,7 +75,6 @@ function App() {
   }
 
   const totalBalance = wallets.reduce((s, w) => s + w.balance, 0)
-  const usableBalance = totalBalance - keepAmount
 
   // ② バレットジャーナル
   function addBulletItem() {
@@ -137,7 +134,7 @@ function App() {
 
   const totalDeducted = bulletItems.reduce((s, i) => s + i.deductedAmount, 0)
   const totalPending = bulletItems.reduce((s, i) => s + (i.estimatedCost - i.deductedAmount), 0)
-  const remainingBudget = usableBalance + bonusBalance - totalDeducted
+  const remainingBudget = totalBalance + bonusBalance - totalDeducted
 
   // ③ お布施ボーナス
   function addTask() {
@@ -291,23 +288,6 @@ function App() {
               ))}
             </ul>
             <div className="summary">手元残高合計: <strong>{totalBalance.toLocaleString()}円</strong></div>
-            <div className="keep-row">
-              <label>
-                キープ額:
-                <input
-                  type="number"
-                  value={keepAmount || ''}
-                  onChange={e => setKeepAmount(Number(e.target.value))}
-                  placeholder="0"
-                />
-              </label>
-            </div>
-            <div className="summary">
-              使える残高:{' '}
-              <strong className={usableBalance < 0 ? 'remaining-negative' : 'remaining-positive'}>
-                {usableBalance.toLocaleString()}円
-              </strong>
-            </div>
           </div>
         )}
 
