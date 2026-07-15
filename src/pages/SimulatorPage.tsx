@@ -9,6 +9,7 @@ interface Props {
   totalDeducted: number
   totalPending: number
   onAddItem: (name: string, cost: number) => void
+  onEditItem: (id: string, name: string, cost: number) => void
   onDeductFull: (id: string) => void
   onUndoDeduct: (id: string) => void
   onDeductPartial: (id: string, amount: number) => void
@@ -17,14 +18,29 @@ interface Props {
 
 export default function SimulatorPage({
   totalBalance, bonusBalance, remainingBudget, bulletItems, totalDeducted, totalPending,
-  onAddItem, onDeductFull, onUndoDeduct, onDeductPartial, onRemoveItem,
+  onAddItem, onEditItem, onDeductFull, onUndoDeduct, onDeductPartial, onRemoveItem,
 }: Props) {
   const [editMode, setEditMode] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editCost, setEditCost] = useState<number>(0)
   const [modalOpen, setModalOpen] = useState(false)
   const [itemName, setItemName] = useState('')
   const [itemCost, setItemCost] = useState<number>(0)
   const [partialId, setPartialId] = useState<string | null>(null)
   const [partialAmt, setPartialAmt] = useState<number>(0)
+
+  function startEdit(item: BulletItem) {
+    setEditingId(item.id)
+    setEditName(item.name)
+    setEditCost(item.estimatedCost)
+  }
+
+  function saveEdit() {
+    if (!editingId || !editName.trim()) return
+    onEditItem(editingId, editName.trim(), editCost)
+    setEditingId(null)
+  }
 
   function handleAdd() {
     if (!itemName.trim()) return
@@ -61,7 +77,7 @@ export default function SimulatorPage({
         <div className="section-header">
           <h3>欲しいものの一覧</h3>
           {bulletItems.length > 0 && (
-            <button className="btn-sub" onClick={() => setEditMode(e => !e)}>
+            <button className="btn-sub" onClick={() => { setEditMode(e => !e); setEditingId(null) }}>
               {editMode ? '完了' : '編集'}
             </button>
           )}
@@ -92,8 +108,29 @@ export default function SimulatorPage({
                     </div>
                   )}
 
-                  {editMode ? (
+                  {editMode && editingId === item.id ? (
+                    <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      <input
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        placeholder="予定名"
+                      />
+                      <input
+                        type="number"
+                        value={editCost || ''}
+                        onChange={e => setEditCost(Number(e.target.value))}
+                        placeholder="金額"
+                        min={0}
+                      />
+                      <div className="item-actions">
+                        <button onClick={saveEdit}>保存</button>
+                        <button className="btn-sub" onClick={() => setEditingId(null)}>キャンセル</button>
+                        <button className="btn-danger" onClick={() => { onRemoveItem(item.id); setEditingId(null) }}>削除</button>
+                      </div>
+                    </div>
+                  ) : editMode ? (
                     <div className="item-actions">
+                      <button className="btn-sub" onClick={() => startEdit(item)}>編集</button>
                       <button className="btn-danger" onClick={() => onRemoveItem(item.id)}>削除</button>
                     </div>
                   ) : fullyDeducted ? (

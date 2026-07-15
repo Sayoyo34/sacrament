@@ -6,7 +6,7 @@ interface Props {
 }
 
 const TABS: { id: Page; icon: string; label: string }[] = [
-  { id: 'simulator', icon: '🏠', label: 'ホーム' },
+  { id: 'simulator', icon: '🏠', label: 'シミュレーター' },
   { id: 'ledger',    icon: '💰', label: '家計簿' },
   { id: 'tasks',     icon: '✅', label: 'タスク' },
   { id: 'timer',     icon: '⏱', label: 'タイマー' },

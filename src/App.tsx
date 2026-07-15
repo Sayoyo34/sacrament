@@ -82,6 +82,9 @@ export default function App() {
       ? { ...i, deductedAmount: Math.min(i.estimatedCost, i.deductedAmount + amount) }
       : i))
   }
+  function editBulletItem(id: string, name: string, cost: number) {
+    setBulletItems(prev => prev.map(i => i.id === id ? { ...i, name, estimatedCost: cost } : i))
+  }
   function removeBulletItem(id: string) {
     setBulletItems(prev => prev.filter(i => i.id !== id))
   }
@@ -138,6 +141,7 @@ export default function App() {
             totalDeducted={totalDeducted}
             totalPending={totalPending}
             onAddItem={addBulletItem}
+            onEditItem={editBulletItem}
             onDeductFull={deductFull}
             onUndoDeduct={undoDeduct}
             onDeductPartial={deductPartial}
