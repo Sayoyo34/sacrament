@@ -25,6 +25,7 @@ export default function TimerPage({
   const [newName, setNewName] = useState('')
   const [newMinutes, setNewMinutes] = useState<number>(0)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const completedSecondsRef = useRef<number | null>(null)
   const onCompleteRef = useRef(onTimerComplete)
   onCompleteRef.current = onTimerComplete
 
@@ -35,9 +36,7 @@ export default function TimerPage({
           if (!prev) return null
           if (prev.remaining <= 1) {
             clearInterval(intervalRef.current!)
-            const mins = Math.floor(prev.totalSeconds / 60)
-            onCompleteRef.current(mins)
-            setTimerDone(true)
+            completedSecondsRef.current = prev.totalSeconds
             return null
           }
           return { ...prev, remaining: prev.remaining - 1 }
@@ -48,6 +47,15 @@ export default function TimerPage({
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [activeTimer?.presetId, isPaused])
+
+  useEffect(() => {
+    if (activeTimer === null && completedSecondsRef.current !== null) {
+      const mins = Math.floor(completedSecondsRef.current / 60)
+      completedSecondsRef.current = null
+      onCompleteRef.current(mins)
+      setTimerDone(true)
+    }
+  }, [activeTimer])
 
   function startTimer(preset: TimerPreset) {
     setTimerDone(false)

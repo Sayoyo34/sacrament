@@ -33,7 +33,7 @@ export default function App() {
   const [entries, setEntries] = useState<LedgerEntry[]>(() => load('entries', []))
   const [bulletItems, setBulletItems] = useState<BulletItem[]>(() => load('bulletItems', []))
   const [tasks, setTasks] = useState<Task[]>(() => load('tasks', []))
-  const [bonusBalance, setBonusBalance] = useState<number>(() => load('bonusBalance', 0))
+  const [taskBonus, setTaskBonus] = useState<number>(() => load('taskBonus', load('bonusBalance', 0)))
   const [presets, setPresets] = useState<TimerPreset[]>(() => load('presets', DEFAULT_PRESETS))
   const [totalMinutes, setTotalMinutes] = useState<number>(() => load('totalMinutes', 0))
   const [bonusRate, setBonusRate] = useState<number>(() => load('bonusRate', 100))
@@ -42,7 +42,7 @@ export default function App() {
   useEffect(() => { localStorage.setItem('entries', JSON.stringify(entries)) }, [entries])
   useEffect(() => { localStorage.setItem('bulletItems', JSON.stringify(bulletItems)) }, [bulletItems])
   useEffect(() => { localStorage.setItem('tasks', JSON.stringify(tasks)) }, [tasks])
-  useEffect(() => { localStorage.setItem('bonusBalance', JSON.stringify(bonusBalance)) }, [bonusBalance])
+  useEffect(() => { localStorage.setItem('taskBonus', JSON.stringify(taskBonus)) }, [taskBonus])
   useEffect(() => { localStorage.setItem('presets', JSON.stringify(presets)) }, [presets])
   useEffect(() => { localStorage.setItem('totalMinutes', JSON.stringify(totalMinutes)) }, [totalMinutes])
   useEffect(() => { localStorage.setItem('bonusRate', JSON.stringify(bonusRate)) }, [bonusRate])
@@ -100,11 +100,11 @@ export default function App() {
     const t = tasks.find(x => x.id === id)
     if (!t || t.completed) return
     setTasks(prev => prev.map(x => x.id === id ? { ...x, completed: true, bonusApplied: true } : x))
-    setBonusBalance(prev => prev + t.bonusAmount)
+    setTaskBonus(prev => prev + t.bonusAmount)
   }
   function removeTask(id: string) {
     const t = tasks.find(x => x.id === id)
-    if (t?.bonusApplied) setBonusBalance(prev => prev - t.bonusAmount)
+    if (t?.bonusApplied) setTaskBonus(prev => prev - t.bonusAmount)
     setTasks(prev => prev.filter(x => x.id !== id))
   }
 
@@ -119,15 +119,12 @@ export default function App() {
     setPresets(prev => prev.filter(p => p.id !== id))
   }
   function handleTimerComplete(completedMinutes: number) {
-    setTotalMinutes(m => {
-      const newTotal = m + completedMinutes
-      const bonus = Math.floor(newTotal / 10) * bonusRate - Math.floor(m / 10) * bonusRate
-      if (bonus > 0) setBonusBalance(b => b + bonus)
-      return newTotal
-    })
+    setTotalMinutes(prev => prev + completedMinutes)
   }
 
   const totalBalance = wallets.reduce((s, w) => s + w.balance, 0)
+  const timerBonus = Math.floor(totalMinutes / 10) * bonusRate
+  const bonusBalance = taskBonus + timerBonus
   const totalDeducted = bulletItems.reduce((s, i) => s + i.deductedAmount, 0)
   const totalPending = bulletItems.reduce((s, i) => s + (i.estimatedCost - i.deductedAmount), 0)
   const remainingBudget = totalBalance + bonusBalance - totalDeducted
