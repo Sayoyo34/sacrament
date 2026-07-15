@@ -6,30 +6,45 @@ function generateId() {
   return Math.random().toString(36).slice(2)
 }
 
+function load<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw !== null ? (JSON.parse(raw) as T) : fallback
+  } catch {
+    return fallback
+  }
+}
+
 function App() {
   // ① 家計簿
-  const [wallets, setWallets] = useState<Wallet[]>([])
+  const [wallets, setWallets] = useState<Wallet[]>(() => load('wallets', []))
   const [walletName, setWalletName] = useState('')
   const [walletInitial, setWalletInitial] = useState<number>(0)
 
-  const [entries, setEntries] = useState<LedgerEntry[]>([])
+  const [entries, setEntries] = useState<LedgerEntry[]>(() => load('entries', []))
   const [entryWalletId, setEntryWalletId] = useState('')
   const [entryLabel, setEntryLabel] = useState('')
   const [entryAmount, setEntryAmount] = useState<number>(0)
   const [entryType, setEntryType] = useState<'expense' | 'income'>('expense')
 
   // ② 出費予定
-  const [bulletItems, setBulletItems] = useState<BulletItem[]>([])
+  const [bulletItems, setBulletItems] = useState<BulletItem[]>(() => load('bulletItems', []))
   const [bulletName, setBulletName] = useState('')
   const [bulletCost, setBulletCost] = useState<number>(0)
   const [partialInputId, setPartialInputId] = useState<string | null>(null)
   const [partialAmount, setPartialAmount] = useState<number>(0)
 
   // ③ お布施ボーナス
-  const [tasks, setTasks] = useState<Task[]>([])
+  const [tasks, setTasks] = useState<Task[]>(() => load('tasks', []))
   const [taskName, setTaskName] = useState('')
   const [taskBonus, setTaskBonus] = useState<number>(0)
-  const [bonusBalance, setBonusBalance] = useState<number>(0)
+  const [bonusBalance, setBonusBalance] = useState<number>(() => load('bonusBalance', 0))
+
+  useEffect(() => { localStorage.setItem('wallets', JSON.stringify(wallets)) }, [wallets])
+  useEffect(() => { localStorage.setItem('entries', JSON.stringify(entries)) }, [entries])
+  useEffect(() => { localStorage.setItem('bulletItems', JSON.stringify(bulletItems)) }, [bulletItems])
+  useEffect(() => { localStorage.setItem('tasks', JSON.stringify(tasks)) }, [tasks])
+  useEffect(() => { localStorage.setItem('bonusBalance', JSON.stringify(bonusBalance)) }, [bonusBalance])
 
   // ウォレット追加
   function addWallet() {
@@ -172,12 +187,16 @@ function App() {
     { id: 'p25', name: 'スパッと', minutes: 25 },
     { id: 'p60', name: 'じっくり', minutes: 60 },
   ]
-  const [presets, setPresets] = useState<TimerPreset[]>(DEFAULT_PRESETS)
+  const [presets, setPresets] = useState<TimerPreset[]>(() => load('presets', DEFAULT_PRESETS))
   const [activeTimer, setActiveTimer] = useState<ActiveTimer | null>(null)
   const [isPaused, setIsPaused] = useState(false)
   const [timerDone, setTimerDone] = useState(false)
-  const [totalMinutes, setTotalMinutes] = useState(0)
-  const [bonusRate, setBonusRate] = useState(100) // 円 per 10分
+  const [totalMinutes, setTotalMinutes] = useState<number>(() => load('totalMinutes', 0))
+  const [bonusRate, setBonusRate] = useState<number>(() => load('bonusRate', 100))
+
+  useEffect(() => { localStorage.setItem('presets', JSON.stringify(presets)) }, [presets])
+  useEffect(() => { localStorage.setItem('totalMinutes', JSON.stringify(totalMinutes)) }, [totalMinutes])
+  useEffect(() => { localStorage.setItem('bonusRate', JSON.stringify(bonusRate)) }, [bonusRate])
   const [editingPreset, setEditingPreset] = useState<TimerPreset | null>(null)
   const [newPresetName, setNewPresetName] = useState('')
   const [newPresetMinutes, setNewPresetMinutes] = useState<number>(0)
