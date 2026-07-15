@@ -37,6 +37,7 @@ export default function App() {
   const [presets, setPresets] = useState<TimerPreset[]>(() => load('presets', DEFAULT_PRESETS))
   const [totalMinutes, setTotalMinutes] = useState<number>(() => load('totalMinutes', 0))
   const [bonusRate, setBonusRate] = useState<number>(() => load('bonusRate', 100))
+  const [capRate, setCapRate] = useState<number>(() => load('capRate', 20)) // 前借り上限（所持金の%）
 
   useEffect(() => { localStorage.setItem('wallets', JSON.stringify(wallets)) }, [wallets])
   useEffect(() => { localStorage.setItem('entries', JSON.stringify(entries)) }, [entries])
@@ -46,6 +47,7 @@ export default function App() {
   useEffect(() => { localStorage.setItem('presets', JSON.stringify(presets)) }, [presets])
   useEffect(() => { localStorage.setItem('totalMinutes', JSON.stringify(totalMinutes)) }, [totalMinutes])
   useEffect(() => { localStorage.setItem('bonusRate', JSON.stringify(bonusRate)) }, [bonusRate])
+  useEffect(() => { localStorage.setItem('capRate', JSON.stringify(capRate)) }, [capRate])
 
   // 家計簿
   function addWallet(name: string, initial: number) {
@@ -125,15 +127,17 @@ export default function App() {
   const totalBalance = wallets.reduce((s, w) => s + w.balance, 0)
   const timerBonus = Math.floor(totalMinutes / 10) * bonusRate
   const bonusBalance = taskBonus + timerBonus
+  const bonusCap = Math.max(0, Math.floor(totalBalance * (capRate / 100)))
+  const effectiveBonus = Math.min(bonusBalance, bonusCap)
   const totalDeducted = bulletItems.reduce((s, i) => s + i.deductedAmount, 0)
   const totalPending = bulletItems.reduce((s, i) => s + (i.estimatedCost - i.deductedAmount), 0)
-  const remainingBudget = totalBalance + bonusBalance - totalDeducted
+  const remainingBudget = totalBalance + effectiveBonus - totalDeducted
 
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
 
   function resetAllData() {
-    const keys = ['wallets','entries','bulletItems','tasks','taskBonus','bonusBalance','presets','totalMinutes','bonusRate']
+    const keys = ['wallets','entries','bulletItems','tasks','taskBonus','bonusBalance','presets','totalMinutes','bonusRate','capRate']
     keys.forEach(k => localStorage.removeItem(k))
     setWallets([])
     setEntries([])
@@ -143,6 +147,7 @@ export default function App() {
     setPresets(DEFAULT_PRESETS)
     setTotalMinutes(0)
     setBonusRate(100)
+    setCapRate(20)
     setSettingsOpen(false)
     setConfirmReset(false)
   }
@@ -154,6 +159,8 @@ export default function App() {
           <SimulatorPage
             totalBalance={totalBalance}
             bonusBalance={bonusBalance}
+            effectiveBonus={effectiveBonus}
+            bonusCap={bonusCap}
             remainingBudget={remainingBudget}
             bulletItems={bulletItems}
             totalDeducted={totalDeducted}
@@ -207,6 +214,23 @@ export default function App() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-handle" />
             <div className="modal-title">設定</div>
+
+            <div className="form-row">
+              <label>ボーナス前借り上限（所持金の%）</label>
+              <input
+                type="number"
+                value={capRate}
+                onChange={e => setCapRate(Number(e.target.value))}
+                min={0}
+                max={100}
+                step={5}
+              />
+              <p className="summary" style={{ marginTop: '0.35rem' }}>
+                今の上限額: {bonusCap.toLocaleString()}円（獲得済み {bonusBalance.toLocaleString()}円 / 反映中 {effectiveBonus.toLocaleString()}円）
+              </p>
+            </div>
+            <hr className="divider" />
+
             {confirmReset ? (
               <>
                 <p style={{ fontSize: '0.9rem', marginBottom: '1rem', color: 'var(--text-h)' }}>

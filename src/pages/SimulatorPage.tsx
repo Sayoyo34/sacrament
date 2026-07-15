@@ -4,6 +4,8 @@ import type { BulletItem } from '../types'
 interface Props {
   totalBalance: number
   bonusBalance: number
+  effectiveBonus: number
+  bonusCap: number
   remainingBudget: number
   bulletItems: BulletItem[]
   totalDeducted: number
@@ -17,7 +19,7 @@ interface Props {
 }
 
 export default function SimulatorPage({
-  totalBalance, bonusBalance, remainingBudget, bulletItems, totalDeducted, totalPending,
+  totalBalance, bonusBalance, effectiveBonus, bonusCap, remainingBudget, bulletItems, totalDeducted, totalPending,
   onAddItem, onEditItem, onDeductFull, onUndoDeduct, onDeductPartial, onRemoveItem,
 }: Props) {
   const [editMode, setEditMode] = useState(false)
@@ -68,10 +70,28 @@ export default function SimulatorPage({
           </div>
           {bonusBalance > 0 && (
             <div className="summary" style={{ marginTop: '0.25rem' }}>
-              うちボーナス {bonusBalance.toLocaleString()}円
+              うちボーナス前借り {effectiveBonus.toLocaleString()}円
+              {bonusBalance > bonusCap && ` （獲得済み ${bonusBalance.toLocaleString()}円）`}
             </div>
           )}
         </div>
+
+        {bonusCap > 0 && (
+          <div className="card" style={{ padding: '0.75rem 1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text)', marginBottom: '0.35rem' }}>
+              <span>ボーナス前借り枠</span>
+              <span>{effectiveBonus.toLocaleString()} / {bonusCap.toLocaleString()}円</span>
+            </div>
+            <div style={{ height: '8px', borderRadius: '4px', background: 'var(--code-bg)', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${Math.min(100, (effectiveBonus / bonusCap) * 100)}%`,
+                background: effectiveBonus >= bonusCap ? '#e53e3e' : 'var(--accent)',
+                transition: 'width 0.2s',
+              }} />
+            </div>
+          </div>
+        )}
 
         {/* 欲しいものの一覧 */}
         <div className="section-header">
