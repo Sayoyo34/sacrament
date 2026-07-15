@@ -167,7 +167,7 @@ export default function SimulatorPage({
                     </div>
                   ) : fullyDeducted ? (
                     <div className="item-actions">
-                      <button className="btn-sub" onClick={() => onUndoDeduct(item.id)}>戻す</button>
+                      <button className="btn-sub" onClick={() => onUndoDeduct(item.id)}>全額戻す</button>
                     </div>
                   ) : (
                     <>
@@ -178,10 +178,10 @@ export default function SimulatorPage({
                         </button>
                         {partiallyDeducted && (
                           <>
-                            <button className="btn-sub" onClick={() => onUndoDeduct(item.id)}>戻す</button>
                             <button className="btn-sub" onClick={() => openPartial(item.id, 'undo')}>
                               一部戻す
                             </button>
+                            <button className="btn-sub" onClick={() => onUndoDeduct(item.id)}>全額戻す</button>
                           </>
                         )}
                       </div>
