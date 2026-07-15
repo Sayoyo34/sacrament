@@ -15,12 +15,13 @@ interface Props {
   onDeductFull: (id: string) => void
   onUndoDeduct: (id: string) => void
   onDeductPartial: (id: string, amount: number) => void
+  onUndoPartial: (id: string, amount: number) => void
   onRemoveItem: (id: string) => void
 }
 
 export default function SimulatorPage({
   totalBalance, bonusBalance, effectiveBonus, bonusCap, remainingBudget, bulletItems, totalDeducted, totalPending,
-  onAddItem, onEditItem, onDeductFull, onUndoDeduct, onDeductPartial, onRemoveItem,
+  onAddItem, onEditItem, onDeductFull, onUndoDeduct, onDeductPartial, onUndoPartial, onRemoveItem,
 }: Props) {
   const [editMode, setEditMode] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -31,6 +32,7 @@ export default function SimulatorPage({
   const [itemCost, setItemCost] = useState<number>(0)
   const [partialId, setPartialId] = useState<string | null>(null)
   const [partialAmt, setPartialAmt] = useState<number>(0)
+  const [partialMode, setPartialMode] = useState<'deduct' | 'undo'>('deduct')
 
   function startEdit(item: BulletItem) {
     setEditingId(item.id)
@@ -54,8 +56,18 @@ export default function SimulatorPage({
 
   function handlePartialConfirm(id: string, max: number) {
     if (partialAmt <= 0 || partialAmt > max) return
-    onDeductPartial(id, partialAmt)
+    if (partialMode === 'deduct') {
+      onDeductPartial(id, partialAmt)
+    } else {
+      onUndoPartial(id, partialAmt)
+    }
     setPartialId(null)
+    setPartialAmt(0)
+  }
+
+  function openPartial(id: string, mode: 'deduct' | 'undo') {
+    setPartialId(id)
+    setPartialMode(mode)
     setPartialAmt(0)
   }
 
@@ -161,11 +173,16 @@ export default function SimulatorPage({
                     <>
                       <div className="item-actions">
                         <button onClick={() => onDeductFull(item.id)}>全額引く</button>
-                        <button className="btn-sub" onClick={() => { setPartialId(item.id); setPartialAmt(0) }}>
+                        <button className="btn-sub" onClick={() => openPartial(item.id, 'deduct')}>
                           一部引く
                         </button>
                         {partiallyDeducted && (
-                          <button className="btn-sub" onClick={() => onUndoDeduct(item.id)}>戻す</button>
+                          <>
+                            <button className="btn-sub" onClick={() => onUndoDeduct(item.id)}>戻す</button>
+                            <button className="btn-sub" onClick={() => openPartial(item.id, 'undo')}>
+                              一部戻す
+                            </button>
+                          </>
                         )}
                       </div>
                       {partialId === item.id && (
@@ -174,12 +191,14 @@ export default function SimulatorPage({
                             type="number"
                             value={partialAmt || ''}
                             onChange={e => setPartialAmt(Number(e.target.value))}
-                            placeholder={`最大 ${remaining.toLocaleString()}円`}
+                            placeholder={partialMode === 'deduct' ? `最大 ${remaining.toLocaleString()}円` : `最大 ${item.deductedAmount.toLocaleString()}円`}
                             min={0}
-                            max={remaining}
+                            max={partialMode === 'deduct' ? remaining : item.deductedAmount}
                             style={{ flex: 1 }}
                           />
-                          <button onClick={() => handlePartialConfirm(item.id, remaining)}>確定</button>
+                          <button onClick={() => handlePartialConfirm(item.id, partialMode === 'deduct' ? remaining : item.deductedAmount)}>
+                            確定
+                          </button>
                           <button className="btn-sub" onClick={() => setPartialId(null)}>×</button>
                         </div>
                       )}
