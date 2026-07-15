@@ -302,7 +302,7 @@ function App() {
                   <span className="item-name">
                     {w.name}: <strong className={w.balance < 0 ? 'remaining-negative' : ''}>{w.balance.toLocaleString()}円</strong>
                   </span>
-                  <button onClick={() => removeWallet(w.id)}>削除</button>
+                  <button className="btn-danger" onClick={() => removeWallet(w.id)}>削除</button>
                 </li>
               ))}
             </ul>
@@ -344,7 +344,7 @@ function App() {
             </div>
 
             {entries.length > 0 && (
-              <ul className="item-list" style={{ marginTop: '0.5rem' }}>
+              <ul className="item-list">
                 {entries.map(e => {
                   const wallet = wallets.find(w => w.id === e.walletId)
                   return (
@@ -355,7 +355,7 @@ function App() {
                           {e.amount > 0 ? '+' : ''}{e.amount.toLocaleString()}円
                         </span>
                       </span>
-                      <button onClick={() => removeEntry(e.id)}>削除</button>
+                      <button className="btn-danger" onClick={() => removeEntry(e.id)}>削除</button>
                     </li>
                   )
                 })}
@@ -369,13 +369,13 @@ function App() {
       <section className="section">
         <h2>② 出費予定</h2>
         {wallets.length > 0 && (
-          <p className="summary" style={{ marginBottom: '0.5rem' }}>
+          <div className="balance-summary">
             残り使える金額:{' '}
             <strong className={remainingBudget < 0 ? 'remaining-negative' : 'remaining-positive'}>
               {remainingBudget.toLocaleString()}円
             </strong>
-            {bonusBalance > 0 && <span>（うちボーナス {bonusBalance.toLocaleString()}円）</span>}
-          </p>
+            {bonusBalance > 0 && <span className="summary">（うちボーナス {bonusBalance.toLocaleString()}円）</span>}
+          </div>
         )}
         <div className="input-row">
           <input
@@ -407,15 +407,15 @@ function App() {
                       {partiallyDeducted && ` （引済 ${item.deductedAmount.toLocaleString()}円 / 残り ${remaining.toLocaleString()}円）`}
                     </span>
                     {fullyDeducted ? (
-                      <button onClick={() => undoDeduct(item.id)}>外す</button>
+                      <button className="btn-sub" onClick={() => undoDeduct(item.id)}>外す</button>
                     ) : (
                       <>
                         <button onClick={() => deductFull(item.id)}>全額引く</button>
-                        <button onClick={() => openPartialInput(item.id)}>一部引く</button>
-                        {partiallyDeducted && <button onClick={() => undoDeduct(item.id)}>外す</button>}
+                        <button className="btn-sub" onClick={() => openPartialInput(item.id)}>一部引く</button>
+                        {partiallyDeducted && <button className="btn-sub" onClick={() => undoDeduct(item.id)}>外す</button>}
                       </>
                     )}
-                    <button onClick={() => removeBulletItem(item.id)}>削除</button>
+                    <button className="btn-danger" onClick={() => removeBulletItem(item.id)}>削除</button>
                   </li>
                   {partialInputId === item.id && (
                     <li className="item-row partial-input-row">
@@ -426,10 +426,9 @@ function App() {
                         placeholder="引く金額"
                         min={0}
                         max={remaining}
-                        style={{ width: 100 }}
                       />
                       <button onClick={() => confirmPartialDeduct(item.id)}>確定</button>
-                      <button onClick={cancelPartialInput}>キャンセル</button>
+                      <button className="btn-sub" onClick={cancelPartialInput}>キャンセル</button>
                     </li>
                   )}
                 </Fragment>
@@ -474,7 +473,7 @@ function App() {
                   {task.completed ? '🎉' : '📋'} {task.name} — +{task.bonusAmount.toLocaleString()}円
                 </span>
                 {!task.completed && <button onClick={() => completeTask(task.id)}>達成！</button>}
-                <button onClick={() => removeTask(task.id)}>削除</button>
+                <button className="btn-danger" onClick={() => removeTask(task.id)}>削除</button>
               </li>
             ))}
           </ul>
@@ -501,11 +500,10 @@ function App() {
               onChange={e => setBonusRate(Number(e.target.value))}
               min={100}
               step={100}
-              style={{ width: 80 }}
             />
             円
           </label>
-          <div className="summary" style={{ marginTop: '0.3rem' }}>
+          <div className="summary">
             累計: {totalMinutes}分 → 獲得ボーナス: <strong>{earnedBonus.toLocaleString()}円</strong>
           </div>
         </div>
@@ -519,7 +517,7 @@ function App() {
               <button onClick={() => setIsPaused(p => !p)}>
                 {isPaused ? '再開' : '一時停止'}
               </button>
-              <button onClick={cancelTimer}>キャンセル</button>
+              <button className="btn-sub" onClick={cancelTimer}>キャンセル</button>
             </div>
           ) : (
             <div className="timer-presets">
@@ -540,7 +538,7 @@ function App() {
                       />
                       分
                       <button onClick={saveEditPreset}>保存</button>
-                      <button onClick={() => setEditingPreset(null)}>キャンセル</button>
+                      <button className="btn-sub" onClick={() => setEditingPreset(null)}>キャンセル</button>
                     </>
                   ) : (
                     <>
@@ -548,8 +546,8 @@ function App() {
                         <span className="preset-name">{preset.name}</span>
                         <span className="preset-minutes">{preset.minutes}分</span>
                       </button>
-                      <button onClick={() => setEditingPreset({ ...preset })}>編集</button>
-                      <button onClick={() => removePreset(preset.id)}>削除</button>
+                      <button className="btn-sub" onClick={() => setEditingPreset({ ...preset })}>編集</button>
+                      <button className="btn-danger" onClick={() => removePreset(preset.id)}>削除</button>
                     </>
                   )}
                 </div>
@@ -574,7 +572,6 @@ function App() {
               value={newPresetName}
               onChange={e => setNewPresetName(e.target.value)}
               placeholder="名前"
-              style={{ width: 80 }}
             />
             <input
               type="number"

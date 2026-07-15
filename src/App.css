@@ -1,56 +1,60 @@
 .app {
-  max-width: 700px;
+  max-width: 680px;
   margin: 0 auto;
-  padding: 2rem;
-  font-family: monospace;
+  padding: 1.5rem 1rem 3rem;
+  text-align: left;
 }
 
+.app h1 {
+  text-align: center;
+  font-size: 1.8rem;
+  margin: 0 0 1.5rem;
+  letter-spacing: 0.05em;
+  color: var(--text-h);
+}
+
+/* ── セクション ─────────────────────── */
+
 .section {
-  border: 1px solid #ccc;
-  padding: 1rem;
-  margin-bottom: 1.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem 1.25rem 1rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 
 .section:last-child {
   margin-bottom: 0;
 }
 
-.field-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.field-group label input {
-  margin-left: 0.5rem;
-  width: 150px;
-}
-
-.field-group label button {
-  margin-left: 0.5rem;
-}
-
-.calc-button {
-  width: fit-content;
-}
-
-.remaining-negative {
-  color: red;
-}
-
-.remaining-positive {
-  color: green;
+.section h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--accent);
+  color: var(--text-h);
 }
 
 .subsection {
   margin-bottom: 1rem;
 }
 
-.subsection h3 {
-  margin: 0 0 0.4rem;
-  font-size: 0.95em;
-  font-weight: bold;
+.subsection:last-child {
+  margin-bottom: 0;
 }
+
+.subsection h3 {
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  margin: 0 0 0.5rem;
+}
+
+/* ── 入力行 ─────────────────────────── */
 
 .input-row {
   display: flex;
@@ -61,36 +65,119 @@
 
 .input-row input[type="text"],
 .input-row input:not([type]) {
-  flex: 1;
-  min-width: 150px;
+  flex: 1 1 140px;
+  min-width: 0;
 }
 
 .input-row input[type="number"] {
-  width: 120px;
+  width: 100px;
+  flex: 0 0 100px;
 }
 
-.empty-hint {
-  color: #888;
+.input-row select {
+  flex: 0 0 auto;
 }
+
+/* ── フォーム要素 ────────────────────── */
+
+input,
+select {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 0.9rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+input:focus,
+select:focus {
+  border-color: var(--accent);
+}
+
+/* ── ボタン ─────────────────────────── */
+
+button {
+  padding: 0.45rem 0.85rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.85rem;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+button:hover {
+  opacity: 0.85;
+}
+
+button:active {
+  opacity: 0.7;
+}
+
+/* サブ系ボタン（削除・外す・キャンセルなど） */
+button.btn-sub {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-weight: 400;
+}
+
+button.btn-sub:hover {
+  border-color: var(--text);
+  opacity: 1;
+}
+
+button.btn-danger {
+  background: transparent;
+  color: #c0392b;
+  border: 1px solid #e0aaaa;
+  font-weight: 400;
+}
+
+button.btn-danger:hover {
+  background: #fff0f0;
+  opacity: 1;
+}
+
+/* ── リスト ─────────────────────────── */
 
 .item-list {
   list-style: none;
   padding: 0;
+  margin: 0 0 0.5rem;
 }
 
 .item-row {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.4rem;
   align-items: center;
-  margin-bottom: 0.3rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.item-row:last-child {
+  border-bottom: none;
 }
 
 .item-name {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 0.9rem;
+  word-break: break-all;
 }
 
 .item-name.deducted {
   text-decoration: line-through;
+  color: var(--text);
 }
 
 .item-name.partial {
@@ -98,92 +185,140 @@
 }
 
 .partial-input-row {
-  margin-left: 1.5rem;
+  padding-left: 1rem;
+  width: 100%;
 }
 
+/* ── サマリー・説明 ──────────────────── */
+
 .summary {
-  font-size: 0.9em;
-  color: #555;
+  font-size: 0.85rem;
+  color: var(--text);
+  margin-top: 0.5rem;
 }
 
 .description {
-  color: #555;
-  font-size: 0.9em;
+  font-size: 0.85rem;
+  color: var(--text);
+  margin: -0.25rem 0 0.75rem;
 }
+
+.empty-hint {
+  color: var(--text);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 0.75rem 0;
+}
+
+/* ── 残高カラー ─────────────────────── */
+
+.remaining-negative {
+  color: #e53e3e;
+}
+
+.remaining-positive {
+  color: #38a169;
+}
+
+/* ── 残高サマリーバッジ ──────────────── */
+
+.balance-summary {
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.balance-summary strong {
+  font-size: 1.1rem;
+}
+
+/* ── keep-row（レート設定など） ─────── */
+
+.keep-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+  margin-bottom: 0.4rem;
+}
+
+.keep-row input {
+  width: 100px;
+}
+
+.bonus-preview {
+  font-size: 0.85rem;
+  color: var(--text);
+  margin: 0.25rem 0 0.5rem;
+}
+
+/* ── タイマー ───────────────────────── */
 
 .timer-presets {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.5rem;
 }
 
 .preset-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .timer-btn {
-  min-width: 120px;
-  font-size: 1em;
-  padding: 0.4rem 0.8rem;
+  min-width: 110px;
+  font-size: 0.9rem;
+  padding: 0.5rem 0.9rem;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.1rem;
+  line-height: 1.2;
 }
 
 .preset-name {
-  font-weight: bold;
+  font-weight: 700;
 }
 
 .preset-minutes {
-  font-size: 0.8em;
-  color: #888;
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.75);
 }
 
 .timer-active {
   display: flex;
   align-items: center;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .timer-display {
-  font-size: 2.5rem;
-  font-family: monospace;
-  letter-spacing: 2px;
+  font-size: 3rem;
+  font-family: var(--mono);
+  letter-spacing: 3px;
+  color: var(--text-h);
 }
 
 .timer-label {
-  font-size: 0.9em;
-  color: #555;
+  font-size: 0.85rem;
+  color: var(--text);
 }
 
 .timer-done {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
+  flex-wrap: wrap;
   padding: 0.6rem 1rem;
-  background: #f0fff4;
-  border: 1px solid #9ae6b4;
-  border-radius: 4px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
   margin-bottom: 1rem;
-}
-
-.keep-row {
-  margin: 0.3rem 0;
-}
-
-.keep-row label {
-  font-size: 0.95em;
-}
-
-.keep-row input {
-  margin-left: 0.5rem;
-  width: 130px;
-}
-
-.bonus-preview {
-  font-size: 0.9em;
-  margin: 0.25rem 0 0.5rem;
+  font-size: 0.9rem;
 }
