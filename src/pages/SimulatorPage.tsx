@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { BulletItem } from '../types'
+import ConfirmModal from '../components/ConfirmModal'
 
 interface Props {
   totalBalance: number
@@ -33,6 +34,7 @@ export default function SimulatorPage({
   const [partialId, setPartialId] = useState<string | null>(null)
   const [partialAmt, setPartialAmt] = useState<number>(0)
   const [partialMode, setPartialMode] = useState<'deduct' | 'undo'>('deduct')
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
 
   function startEdit(item: BulletItem) {
     setEditingId(item.id)
@@ -157,13 +159,13 @@ export default function SimulatorPage({
                       <div className="item-actions">
                         <button onClick={saveEdit}>保存</button>
                         <button className="btn-sub" onClick={() => setEditingId(null)}>キャンセル</button>
-                        <button className="btn-danger" onClick={() => { onRemoveItem(item.id); setEditingId(null) }}>削除</button>
+                        <button className="btn-danger" onClick={() => { setEditingId(null); setDeleteTarget({ id: item.id, name: item.name }) }}>削除</button>
                       </div>
                     </div>
                   ) : editMode ? (
                     <div className="item-actions">
                       <button className="btn-sub" onClick={() => startEdit(item)}>編集</button>
-                      <button className="btn-danger" onClick={() => onRemoveItem(item.id)}>削除</button>
+                      <button className="btn-danger" onClick={() => setDeleteTarget({ id: item.id, name: item.name })}>削除</button>
                     </div>
                   ) : fullyDeducted ? (
                     <div className="item-actions">
@@ -258,6 +260,14 @@ export default function SimulatorPage({
             </div>
           </div>
         </div>
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          message={`「${deleteTarget.name}」を削除します。よろしいですか？`}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => { onRemoveItem(deleteTarget.id); setDeleteTarget(null) }}
+        />
       )}
     </div>
   )

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Wallet, LedgerEntry } from '../types'
+import ConfirmModal from '../components/ConfirmModal'
 
 interface Props {
   wallets: Wallet[]
@@ -42,6 +43,9 @@ export default function LedgerPage({
 
   const [walletName, setWalletName] = useState('')
   const [walletInitial, setWalletInitial] = useState<number>(0)
+
+  const [deleteWalletTarget, setDeleteWalletTarget] = useState<{ id: string; name: string } | null>(null)
+  const [deleteEntryTarget, setDeleteEntryTarget] = useState<{ id: string; label: string } | null>(null)
 
   function openEntryModal() {
     if (wallets.length === 0) { setWalletModal(true); return }
@@ -127,7 +131,7 @@ export default function LedgerPage({
                       {e.amount > 0 ? '+' : ''}{e.amount.toLocaleString()}円
                     </span>
                     {editMode && (
-                      <button className="btn-danger" onClick={() => onRemoveEntry(e.id)}>削除</button>
+                      <button className="btn-danger" onClick={() => setDeleteEntryTarget({ id: e.id, label: e.label })}>削除</button>
                     )}
                   </div>
                 </li>
@@ -217,7 +221,7 @@ export default function LedgerPage({
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
                       <button onClick={saveWalletEdit}>保存</button>
                       <button className="btn-sub" onClick={() => setEditingWalletId(null)}>キャンセル</button>
-                      <button className="btn-danger" onClick={() => { onRemoveWallet(w.id); setEditingWalletId(null) }}>削除</button>
+                      <button className="btn-danger" onClick={() => { setEditingWalletId(null); setDeleteWalletTarget({ id: w.id, name: w.name }) }}>削除</button>
                     </div>
                   </div>
                 ) : (
@@ -225,7 +229,7 @@ export default function LedgerPage({
                     <span className="wallet-name">{w.name}</span>
                     <span className="wallet-balance">{w.balance.toLocaleString()}円</span>
                     <button className="btn-sub" onClick={() => startWalletEdit(w)}>編集</button>
-                    <button className="btn-danger" onClick={() => onRemoveWallet(w.id)}>削除</button>
+                    <button className="btn-danger" onClick={() => setDeleteWalletTarget({ id: w.id, name: w.name })}>削除</button>
                   </div>
                 )}
               </div>
@@ -253,6 +257,22 @@ export default function LedgerPage({
             </button>
           </div>
         </div>
+      )}
+
+      {deleteWalletTarget && (
+        <ConfirmModal
+          message={`「${deleteWalletTarget.name}」を削除します。関連する取引記録も削除されます。よろしいですか？`}
+          onCancel={() => setDeleteWalletTarget(null)}
+          onConfirm={() => { onRemoveWallet(deleteWalletTarget.id); setDeleteWalletTarget(null) }}
+        />
+      )}
+
+      {deleteEntryTarget && (
+        <ConfirmModal
+          message={`「${deleteEntryTarget.label}」の記録を削除します。よろしいですか？`}
+          onCancel={() => setDeleteEntryTarget(null)}
+          onConfirm={() => { onRemoveEntry(deleteEntryTarget.id); setDeleteEntryTarget(null) }}
+        />
       )}
     </div>
   )

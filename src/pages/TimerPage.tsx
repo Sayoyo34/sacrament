@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type { TimerPreset, ActiveTimer } from '../types'
+import ConfirmModal from '../components/ConfirmModal'
 
 interface Props {
   presets: TimerPreset[]
@@ -24,6 +25,7 @@ export default function TimerPage({
   const [addModal, setAddModal] = useState(false)
   const [newName, setNewName] = useState('')
   const [newMinutes, setNewMinutes] = useState<number>(0)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const completedSecondsRef = useRef<number | null>(null)
   const onCompleteRef = useRef(onTimerComplete)
@@ -153,10 +155,7 @@ export default function TimerPage({
                         <span className="preset-minutes">{preset.minutes}分</span>
                       </button>
                       <button className="btn-sub" onClick={() => setEditingPreset({ ...preset })}>編集</button>
-                      <button className="btn-danger" onClick={() => {
-                        if (activeTimer?.presetId === preset.id) cancelTimer()
-                        onRemovePreset(preset.id)
-                      }}>削除</button>
+                      <button className="btn-danger" onClick={() => setDeleteTarget({ id: preset.id, name: preset.name })}>削除</button>
                     </div>
                   )}
                 </div>
@@ -218,6 +217,18 @@ export default function TimerPage({
             </div>
           </div>
         </div>
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          message={`「${deleteTarget.name}」を削除します。よろしいですか？`}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => {
+            if (activeTimer?.presetId === deleteTarget.id) cancelTimer()
+            onRemovePreset(deleteTarget.id)
+            setDeleteTarget(null)
+          }}
+        />
       )}
     </div>
   )

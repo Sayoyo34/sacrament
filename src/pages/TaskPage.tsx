@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Task } from '../types'
+import ConfirmModal from '../components/ConfirmModal'
 
 interface Props {
   tasks: Task[]
@@ -14,6 +15,7 @@ export default function TaskPage({ tasks, bonusBalance, onAddTask, onCompleteTas
   const [taskName, setTaskName] = useState('')
   const [taskBonus, setTaskBonus] = useState<number>(0)
   const [editMode, setEditMode] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
 
   function handleAdd() {
     if (!taskName.trim()) return
@@ -57,7 +59,7 @@ export default function TaskPage({ tasks, bonusBalance, onAddTask, onCompleteTas
                     </div>
                     <button onClick={() => onCompleteTask(task.id)}>達成！</button>
                     {editMode && (
-                      <button className="btn-danger" onClick={() => onRemoveTask(task.id)}>削除</button>
+                      <button className="btn-danger" onClick={() => setDeleteTarget({ id: task.id, name: task.name })}>削除</button>
                     )}
                   </div>
                 </li>
@@ -78,7 +80,7 @@ export default function TaskPage({ tasks, bonusBalance, onAddTask, onCompleteTas
                           <div className="task-bonus">+{task.bonusAmount.toLocaleString()}円</div>
                         </div>
                         {editMode && (
-                          <button className="btn-danger" onClick={() => onRemoveTask(task.id)}>削除</button>
+                          <button className="btn-danger" onClick={() => setDeleteTarget({ id: task.id, name: task.name })}>削除</button>
                         )}
                       </div>
                     </li>
@@ -124,6 +126,14 @@ export default function TaskPage({ tasks, bonusBalance, onAddTask, onCompleteTas
             </div>
           </div>
         </div>
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          message={`「${deleteTarget.name}」を削除します。よろしいですか？`}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => { onRemoveTask(deleteTarget.id); setDeleteTarget(null) }}
+        />
       )}
     </div>
   )
