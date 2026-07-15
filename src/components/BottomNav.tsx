@@ -3,6 +3,7 @@ type Page = 'simulator' | 'ledger' | 'tasks' | 'timer'
 interface Props {
   page: Page
   onChange: (page: Page) => void
+  onSettings: () => void
 }
 
 const TABS: { id: Page; icon: string; label: string }[] = [
@@ -12,7 +13,7 @@ const TABS: { id: Page; icon: string; label: string }[] = [
   { id: 'timer',     icon: '⏱', label: 'タイマー' },
 ]
 
-export default function BottomNav({ page, onChange }: Props) {
+export default function BottomNav({ page, onChange, onSettings }: Props) {
   return (
     <nav className="bottom-nav">
       {TABS.map(tab => (
@@ -25,6 +26,10 @@ export default function BottomNav({ page, onChange }: Props) {
           {tab.label}
         </button>
       ))}
+      <button className="nav-item" onClick={onSettings}>
+        <span className="nav-icon">⚙️</span>
+        設定
+      </button>
     </nav>
   )
 }

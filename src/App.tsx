@@ -129,6 +129,24 @@ export default function App() {
   const totalPending = bulletItems.reduce((s, i) => s + (i.estimatedCost - i.deductedAmount), 0)
   const remainingBudget = totalBalance + bonusBalance - totalDeducted
 
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [confirmReset, setConfirmReset] = useState(false)
+
+  function resetAllData() {
+    const keys = ['wallets','entries','bulletItems','tasks','taskBonus','bonusBalance','presets','totalMinutes','bonusRate']
+    keys.forEach(k => localStorage.removeItem(k))
+    setWallets([])
+    setEntries([])
+    setBulletItems([])
+    setTasks([])
+    setTaskBonus(0)
+    setPresets(DEFAULT_PRESETS)
+    setTotalMinutes(0)
+    setBonusRate(100)
+    setSettingsOpen(false)
+    setConfirmReset(false)
+  }
+
   return (
     <div className="app-shell">
       <div className="page-content">
@@ -182,7 +200,33 @@ export default function App() {
           />
         )}
       </div>
-      <BottomNav page={page} onChange={setPage} />
+      <BottomNav page={page} onChange={setPage} onSettings={() => setSettingsOpen(true)} />
+
+      {settingsOpen && (
+        <div className="modal-overlay" onClick={() => { setSettingsOpen(false); setConfirmReset(false) }}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-handle" />
+            <div className="modal-title">設定</div>
+            {confirmReset ? (
+              <>
+                <p style={{ fontSize: '0.9rem', marginBottom: '1rem', color: 'var(--text-h)' }}>
+                  すべてのデータを削除します。この操作は取り消せません。
+                </p>
+                <div className="form-actions">
+                  <button className="btn-sub" onClick={() => setConfirmReset(false)}>キャンセル</button>
+                  <button className="btn-danger" style={{ background: '#e53e3e', color: '#fff', border: 'none' }} onClick={resetAllData}>
+                    削除する
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button className="btn-danger" onClick={() => setConfirmReset(true)}>
+                データをすべてリセット
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
