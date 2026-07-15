@@ -6,6 +6,7 @@ interface Props {
   entries: LedgerEntry[]
   totalBalance: number
   onAddWallet: (name: string, initial: number) => void
+  onEditWallet: (id: string, name: string, balance: number) => void
   onRemoveWallet: (id: string) => void
   onAddEntry: (walletId: string, label: string, amount: number, type: 'expense' | 'income') => void
   onRemoveEntry: (id: string) => void
@@ -13,11 +14,26 @@ interface Props {
 
 export default function LedgerPage({
   wallets, entries, totalBalance,
-  onAddWallet, onRemoveWallet, onAddEntry, onRemoveEntry,
+  onAddWallet, onEditWallet, onRemoveWallet, onAddEntry, onRemoveEntry,
 }: Props) {
   const [entryModal, setEntryModal] = useState(false)
   const [walletModal, setWalletModal] = useState(false)
   const [editMode, setEditMode] = useState(false)
+  const [editingWalletId, setEditingWalletId] = useState<string | null>(null)
+  const [editWalletName, setEditWalletName] = useState('')
+  const [editWalletBalance, setEditWalletBalance] = useState<number>(0)
+
+  function startWalletEdit(w: Wallet) {
+    setEditingWalletId(w.id)
+    setEditWalletName(w.name)
+    setEditWalletBalance(w.balance)
+  }
+
+  function saveWalletEdit() {
+    if (!editingWalletId || !editWalletName.trim()) return
+    onEditWallet(editingWalletId, editWalletName.trim(), editWalletBalance)
+    setEditingWalletId(null)
+  }
 
   const [entryWalletId, setEntryWalletId] = useState('')
   const [entryLabel, setEntryLabel] = useState('')
@@ -184,10 +200,34 @@ export default function LedgerPage({
             <div className="modal-handle" />
             <div className="modal-title">口座の追加・編集</div>
             {wallets.map(w => (
-              <div key={w.id} className="wallet-row">
-                <span className="wallet-name">{w.name}</span>
-                <span className="wallet-balance">{w.balance.toLocaleString()}円</span>
-                <button className="btn-danger" onClick={() => onRemoveWallet(w.id)}>削除</button>
+              <div key={w.id}>
+                {editingWalletId === w.id ? (
+                  <div style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <input
+                      value={editWalletName}
+                      onChange={e => setEditWalletName(e.target.value)}
+                      placeholder="口座名"
+                    />
+                    <input
+                      type="number"
+                      value={editWalletBalance || ''}
+                      onChange={e => setEditWalletBalance(Number(e.target.value))}
+                      placeholder="残高"
+                    />
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <button onClick={saveWalletEdit}>保存</button>
+                      <button className="btn-sub" onClick={() => setEditingWalletId(null)}>キャンセル</button>
+                      <button className="btn-danger" onClick={() => { onRemoveWallet(w.id); setEditingWalletId(null) }}>削除</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="wallet-row">
+                    <span className="wallet-name">{w.name}</span>
+                    <span className="wallet-balance">{w.balance.toLocaleString()}円</span>
+                    <button className="btn-sub" onClick={() => startWalletEdit(w)}>編集</button>
+                    <button className="btn-danger" onClick={() => onRemoveWallet(w.id)}>削除</button>
+                  </div>
+                )}
               </div>
             ))}
             <hr className="divider" />

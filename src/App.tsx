@@ -51,6 +51,9 @@ export default function App() {
   function addWallet(name: string, initial: number) {
     setWallets(prev => [...prev, { id: generateId(), name, balance: initial }])
   }
+  function editWallet(id: string, name: string, balance: number) {
+    setWallets(prev => prev.map(w => w.id === id ? { ...w, name, balance } : w))
+  }
   function removeWallet(id: string) {
     setWallets(prev => prev.filter(w => w.id !== id))
     setEntries(prev => prev.filter(e => e.walletId !== id))
@@ -154,6 +157,7 @@ export default function App() {
             entries={entries}
             totalBalance={totalBalance}
             onAddWallet={addWallet}
+            onEditWallet={editWallet}
             onRemoveWallet={removeWallet}
             onAddEntry={addEntry}
             onRemoveEntry={removeEntry}
