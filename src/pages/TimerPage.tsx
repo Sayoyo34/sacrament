@@ -6,6 +6,7 @@ interface Props {
   presets: TimerPreset[]
   totalMinutes: number
   bonusRate: number
+  taskBonus: number
   onSetBonusRate: (rate: number) => void
   onTimerComplete: (completedMinutes: number) => void
   onAddPreset: (name: string, minutes: number) => void
@@ -14,7 +15,7 @@ interface Props {
 }
 
 export default function TimerPage({
-  presets, totalMinutes, bonusRate,
+  presets, totalMinutes, bonusRate, taskBonus,
   onSetBonusRate, onTimerComplete,
   onAddPreset, onEditPreset, onRemovePreset,
 }: Props) {
@@ -92,6 +93,7 @@ export default function TimerPage({
   }
 
   const earnedBonus = Math.floor(totalMinutes / 10) * bonusRate
+  const combinedBonus = earnedBonus + taskBonus
   const activePreset = presets.find(p => p.id === activeTimer?.presetId)
 
   return (
@@ -103,6 +105,9 @@ export default function TimerPage({
           <div className="summary" style={{ marginTop: '0.25rem' }}>
             {totalMinutes}分（10分 = {bonusRate}円）
           </div>
+          <hr className="divider" style={{ margin: '0.6rem 0' }} />
+          <div className="stat-label">合計ボーナス累計（タスク＋タイマー）</div>
+          <div className="stat-number">{combinedBonus.toLocaleString()}円</div>
         </div>
 
         {timerDone && (

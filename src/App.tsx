@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { Wallet, LedgerEntry, BulletItem, Task, TimerPreset } from './types'
+import type { Wallet, LedgerEntry, RecurringExpense, BulletItem, Task, TimerPreset } from './types'
 import SimulatorPage from './pages/SimulatorPage'
 import LedgerPage from './pages/LedgerPage'
 import TaskPage from './pages/TaskPage'
@@ -31,6 +31,7 @@ export default function App() {
 
   const [wallets, setWallets] = useState<Wallet[]>(() => load('wallets', []))
   const [entries, setEntries] = useState<LedgerEntry[]>(() => load('entries', []))
+  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>(() => load('recurringExpenses', []))
   const [bulletItems, setBulletItems] = useState<BulletItem[]>(() => load('bulletItems', []))
   const [tasks, setTasks] = useState<Task[]>(() => load('tasks', []))
   const [taskBonus, setTaskBonus] = useState<number>(() => load('taskBonus', load('bonusBalance', 0)))
@@ -38,9 +39,11 @@ export default function App() {
   const [totalMinutes, setTotalMinutes] = useState<number>(() => load('totalMinutes', 0))
   const [bonusRate, setBonusRate] = useState<number>(() => load('bonusRate', 100))
   const [capRate, setCapRate] = useState<number>(() => load('capRate', 20)) // 前借り上限（所持金の%）
+  const [bonusUsed, setBonusUsed] = useState<number>(() => load('bonusUsed', 0))
 
   useEffect(() => { localStorage.setItem('wallets', JSON.stringify(wallets)) }, [wallets])
   useEffect(() => { localStorage.setItem('entries', JSON.stringify(entries)) }, [entries])
+  useEffect(() => { localStorage.setItem('recurringExpenses', JSON.stringify(recurringExpenses)) }, [recurringExpenses])
   useEffect(() => { localStorage.setItem('bulletItems', JSON.stringify(bulletItems)) }, [bulletItems])
   useEffect(() => { localStorage.setItem('tasks', JSON.stringify(tasks)) }, [tasks])
   useEffect(() => { localStorage.setItem('taskBonus', JSON.stringify(taskBonus)) }, [taskBonus])
@@ -48,6 +51,7 @@ export default function App() {
   useEffect(() => { localStorage.setItem('totalMinutes', JSON.stringify(totalMinutes)) }, [totalMinutes])
   useEffect(() => { localStorage.setItem('bonusRate', JSON.stringify(bonusRate)) }, [bonusRate])
   useEffect(() => { localStorage.setItem('capRate', JSON.stringify(capRate)) }, [capRate])
+  useEffect(() => { localStorage.setItem('bonusUsed', JSON.stringify(bonusUsed)) }, [bonusUsed])
 
   // 家計簿
   function addWallet(name: string, initial: number) {
@@ -59,10 +63,11 @@ export default function App() {
   function removeWallet(id: string) {
     setWallets(prev => prev.filter(w => w.id !== id))
     setEntries(prev => prev.filter(e => e.walletId !== id))
+    setRecurringExpenses(prev => prev.filter(r => r.walletId !== id))
   }
-  function addEntry(walletId: string, label: string, amount: number, type: 'expense' | 'income') {
+  function addEntry(walletId: string, label: string, amount: number, type: 'expense' | 'income', date: string) {
     const signed = type === 'expense' ? -Math.abs(amount) : Math.abs(amount)
-    setEntries(prev => [...prev, { id: generateId(), walletId, label, amount: signed }])
+    setEntries(prev => [...prev, { id: generateId(), walletId, label, amount: signed, date }])
     setWallets(prev => prev.map(w => w.id === walletId ? { ...w, balance: w.balance + signed } : w))
   }
   function removeEntry(id: string) {
@@ -70,6 +75,27 @@ export default function App() {
     if (!e) return
     setEntries(prev => prev.filter(x => x.id !== id))
     setWallets(prev => prev.map(w => w.id === e.walletId ? { ...w, balance: w.balance - e.amount } : w))
+  }
+  function editEntry(id: string, walletId: string, label: string, amount: number, type: 'expense' | 'income', date: string) {
+    const old = entries.find(x => x.id === id)
+    if (!old) return
+    const signed = type === 'expense' ? -Math.abs(amount) : Math.abs(amount)
+    setEntries(prev => prev.map(x => x.id === id ? { ...x, walletId, label, amount: signed, date } : x))
+    setWallets(prev => prev.map(w => {
+      let balance = w.balance
+      if (w.id === old.walletId) balance -= old.amount
+      if (w.id === walletId) balance += signed
+      return balance === w.balance ? w : { ...w, balance }
+    }))
+  }
+  function addRecurring(name: string, amount: number, dayOfMonth: number, walletId: string) {
+    setRecurringExpenses(prev => [...prev, { id: generateId(), name, amount, dayOfMonth, walletId }])
+  }
+  function editRecurring(id: string, name: string, amount: number, dayOfMonth: number, walletId: string) {
+    setRecurringExpenses(prev => prev.map(r => r.id === id ? { ...r, name, amount, dayOfMonth, walletId } : r))
+  }
+  function removeRecurring(id: string) {
+    setRecurringExpenses(prev => prev.filter(r => r.id !== id))
   }
 
   // シミュレーター
@@ -97,6 +123,18 @@ export default function App() {
   }
   function removeBulletItem(id: string) {
     setBulletItems(prev => prev.filter(i => i.id !== id))
+  }
+  function useBonusFull() {
+    setBonusUsed(bonusBalance)
+  }
+  function undoBonusUse() {
+    setBonusUsed(0)
+  }
+  function useBonusPartial(amount: number) {
+    setBonusUsed(prev => Math.min(bonusBalance, prev + amount))
+  }
+  function undoBonusPartial(amount: number) {
+    setBonusUsed(prev => Math.max(0, prev - amount))
   }
 
   // タスク
@@ -132,8 +170,9 @@ export default function App() {
   const totalBalance = wallets.reduce((s, w) => s + w.balance, 0)
   const timerBonus = Math.floor(totalMinutes / 10) * bonusRate
   const bonusBalance = taskBonus + timerBonus
+  const availableBonus = Math.max(0, bonusBalance - bonusUsed)
   const bonusCap = Math.max(0, Math.floor(totalBalance * (capRate / 100)))
-  const effectiveBonus = Math.min(bonusBalance, bonusCap)
+  const effectiveBonus = Math.min(availableBonus, bonusCap)
   const totalDeducted = bulletItems.reduce((s, i) => s + i.deductedAmount, 0)
   const totalPending = bulletItems.reduce((s, i) => s + (i.estimatedCost - i.deductedAmount), 0)
   const remainingBudget = totalBalance + effectiveBonus - totalDeducted
@@ -142,10 +181,11 @@ export default function App() {
   const [confirmReset, setConfirmReset] = useState(false)
 
   function resetAllData() {
-    const keys = ['wallets','entries','bulletItems','tasks','taskBonus','bonusBalance','presets','totalMinutes','bonusRate','capRate']
+    const keys = ['wallets','entries','recurringExpenses','bulletItems','tasks','taskBonus','bonusBalance','presets','totalMinutes','bonusRate','capRate','bonusUsed']
     keys.forEach(k => localStorage.removeItem(k))
     setWallets([])
     setEntries([])
+    setRecurringExpenses([])
     setBulletItems([])
     setTasks([])
     setTaskBonus(0)
@@ -153,6 +193,7 @@ export default function App() {
     setTotalMinutes(0)
     setBonusRate(100)
     setCapRate(20)
+    setBonusUsed(0)
     setSettingsOpen(false)
     setConfirmReset(false)
   }
@@ -164,6 +205,8 @@ export default function App() {
           <SimulatorPage
             totalBalance={totalBalance}
             bonusBalance={bonusBalance}
+            availableBonus={availableBonus}
+            bonusUsed={bonusUsed}
             effectiveBonus={effectiveBonus}
             bonusCap={bonusCap}
             remainingBudget={remainingBudget}
@@ -177,24 +220,34 @@ export default function App() {
             onDeductPartial={deductPartial}
             onUndoPartial={undoPartial}
             onRemoveItem={removeBulletItem}
+            onUseBonusFull={useBonusFull}
+            onUndoBonusUse={undoBonusUse}
+            onUseBonusPartial={useBonusPartial}
+            onUndoBonusPartial={undoBonusPartial}
           />
         )}
         {page === 'ledger' && (
           <LedgerPage
             wallets={wallets}
             entries={entries}
+            recurringExpenses={recurringExpenses}
             totalBalance={totalBalance}
             onAddWallet={addWallet}
             onEditWallet={editWallet}
             onRemoveWallet={removeWallet}
             onAddEntry={addEntry}
+            onEditEntry={editEntry}
             onRemoveEntry={removeEntry}
+            onAddRecurring={addRecurring}
+            onEditRecurring={editRecurring}
+            onRemoveRecurring={removeRecurring}
           />
         )}
         {page === 'tasks' && (
           <TaskPage
             tasks={tasks}
-            bonusBalance={bonusBalance}
+            taskBonus={taskBonus}
+            timerBonus={timerBonus}
             onAddTask={addTask}
             onCompleteTask={completeTask}
             onRemoveTask={removeTask}
@@ -205,6 +258,7 @@ export default function App() {
             presets={presets}
             totalMinutes={totalMinutes}
             bonusRate={bonusRate}
+            taskBonus={taskBonus}
             onSetBonusRate={setBonusRate}
             onTimerComplete={handleTimerComplete}
             onAddPreset={addPreset}
@@ -232,7 +286,7 @@ export default function App() {
                 step={5}
               />
               <p className="summary" style={{ marginTop: '0.35rem' }}>
-                今の上限額: {bonusCap.toLocaleString()}円（獲得済み {bonusBalance.toLocaleString()}円 / 反映中 {effectiveBonus.toLocaleString()}円）
+                今の上限額: {bonusCap.toLocaleString()}円（獲得済み {bonusBalance.toLocaleString()}円 / 使用済み {bonusUsed.toLocaleString()}円 / 反映中 {effectiveBonus.toLocaleString()}円）
               </p>
             </div>
             <hr className="divider" />

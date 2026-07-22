@@ -5,6 +5,8 @@ import ConfirmModal from '../components/ConfirmModal'
 interface Props {
   totalBalance: number
   bonusBalance: number
+  availableBonus: number
+  bonusUsed: number
   effectiveBonus: number
   bonusCap: number
   remainingBudget: number
@@ -18,11 +20,16 @@ interface Props {
   onDeductPartial: (id: string, amount: number) => void
   onUndoPartial: (id: string, amount: number) => void
   onRemoveItem: (id: string) => void
+  onUseBonusFull: () => void
+  onUndoBonusUse: () => void
+  onUseBonusPartial: (amount: number) => void
+  onUndoBonusPartial: (amount: number) => void
 }
 
 export default function SimulatorPage({
-  totalBalance, bonusBalance, effectiveBonus, bonusCap, remainingBudget, bulletItems, totalDeducted, totalPending,
+  totalBalance, bonusBalance, availableBonus, bonusUsed, effectiveBonus, bonusCap, remainingBudget, bulletItems, totalDeducted, totalPending,
   onAddItem, onEditItem, onDeductFull, onUndoDeduct, onDeductPartial, onUndoPartial, onRemoveItem,
+  onUseBonusFull, onUndoBonusUse, onUseBonusPartial, onUndoBonusPartial,
 }: Props) {
   const [editMode, setEditMode] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -35,6 +42,24 @@ export default function SimulatorPage({
   const [partialAmt, setPartialAmt] = useState<number>(0)
   const [partialMode, setPartialMode] = useState<'deduct' | 'undo'>('deduct')
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+
+  const [bonusPartialOpen, setBonusPartialOpen] = useState(false)
+  const [bonusPartialAmt, setBonusPartialAmt] = useState<number>(0)
+  const [bonusPartialMode, setBonusPartialMode] = useState<'use' | 'undo'>('use')
+
+  function openBonusPartial(mode: 'use' | 'undo') {
+    setBonusPartialOpen(true)
+    setBonusPartialMode(mode)
+    setBonusPartialAmt(0)
+  }
+
+  function handleBonusPartialConfirm(max: number) {
+    if (bonusPartialAmt <= 0 || bonusPartialAmt > max) return
+    if (bonusPartialMode === 'use') onUseBonusPartial(bonusPartialAmt)
+    else onUndoBonusPartial(bonusPartialAmt)
+    setBonusPartialOpen(false)
+    setBonusPartialAmt(0)
+  }
 
   function startEdit(item: BulletItem) {
     setEditingId(item.id)
@@ -85,7 +110,9 @@ export default function SimulatorPage({
           {bonusBalance > 0 && (
             <div className="summary" style={{ marginTop: '0.25rem' }}>
               うちボーナス前借り {effectiveBonus.toLocaleString()}円
-              {bonusBalance > bonusCap && ` （獲得済み ${bonusBalance.toLocaleString()}円）`}
+              {effectiveBonus < bonusBalance && ` （獲得済み ${bonusBalance.toLocaleString()}円`}
+              {effectiveBonus < bonusBalance && bonusUsed > 0 && ` / 使用済み ${bonusUsed.toLocaleString()}円`}
+              {effectiveBonus < bonusBalance && '）'}
             </div>
           )}
         </div>
@@ -104,6 +131,50 @@ export default function SimulatorPage({
                 transition: 'width 0.2s',
               }} />
             </div>
+          </div>
+        )}
+
+        {/* ボーナス前借り */}
+        {bonusBalance > 0 && (
+          <div className="card">
+            <div className="section-header" style={{ marginTop: 0 }}>
+              <h3>ボーナス前借り</h3>
+            </div>
+            <div className="summary" style={{ padding: '0.25rem 0' }}>
+              使える {availableBonus.toLocaleString()}円
+              {bonusUsed > 0 && ` ／ 使用済み ${bonusUsed.toLocaleString()}円`}
+            </div>
+            <div className="item-actions">
+              {availableBonus > 0 && (
+                <>
+                  <button onClick={onUseBonusFull}>全額使う</button>
+                  <button className="btn-sub" onClick={() => openBonusPartial('use')}>一部使う</button>
+                </>
+              )}
+              {bonusUsed > 0 && (
+                <>
+                  <button className="btn-sub" onClick={() => openBonusPartial('undo')}>一部戻す</button>
+                  <button className="btn-sub" onClick={onUndoBonusUse}>全額戻す</button>
+                </>
+              )}
+            </div>
+            {bonusPartialOpen && (
+              <div className="item-partial-input">
+                <input
+                  type="number"
+                  value={bonusPartialAmt || ''}
+                  onChange={e => setBonusPartialAmt(Number(e.target.value))}
+                  placeholder={bonusPartialMode === 'use' ? `最大 ${availableBonus.toLocaleString()}円` : `最大 ${bonusUsed.toLocaleString()}円`}
+                  min={0}
+                  max={bonusPartialMode === 'use' ? availableBonus : bonusUsed}
+                  style={{ flex: 1 }}
+                />
+                <button onClick={() => handleBonusPartialConfirm(bonusPartialMode === 'use' ? availableBonus : bonusUsed)}>
+                  確定
+                </button>
+                <button className="btn-sub" onClick={() => setBonusPartialOpen(false)}>×</button>
+              </div>
+            )}
           </div>
         )}
 

@@ -9,6 +9,15 @@ export interface LedgerEntry {
   walletId: string;
   label: string;
   amount: number;     // 正=収入, 負=支出
+  date: string;       // YYYY-MM-DD
+}
+
+export interface RecurringExpense {
+  id: string;
+  name: string;
+  amount: number;
+  dayOfMonth: number;   // 1-31（毎月の引き落とし日）, 0 = 未設定
+  walletId: string;
 }
 
 export interface BulletItem {

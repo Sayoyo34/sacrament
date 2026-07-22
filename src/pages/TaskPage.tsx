@@ -4,24 +4,26 @@ import ConfirmModal from '../components/ConfirmModal'
 
 interface Props {
   tasks: Task[]
-  bonusBalance: number
+  taskBonus: number
+  timerBonus: number
   onAddTask: (name: string, bonus: number) => void
   onCompleteTask: (id: string) => void
   onRemoveTask: (id: string) => void
 }
 
-export default function TaskPage({ tasks, bonusBalance, onAddTask, onCompleteTask, onRemoveTask }: Props) {
+export default function TaskPage({ tasks, taskBonus, timerBonus, onAddTask, onCompleteTask, onRemoveTask }: Props) {
+  const combinedBonus = taskBonus + timerBonus
   const [modalOpen, setModalOpen] = useState(false)
   const [taskName, setTaskName] = useState('')
-  const [taskBonus, setTaskBonus] = useState<number>(0)
+  const [newTaskBonus, setNewTaskBonus] = useState<number>(0)
   const [editMode, setEditMode] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
 
   function handleAdd() {
     if (!taskName.trim()) return
-    onAddTask(taskName.trim(), taskBonus)
+    onAddTask(taskName.trim(), newTaskBonus)
     setTaskName('')
-    setTaskBonus(0)
+    setNewTaskBonus(0)
     setModalOpen(false)
   }
 
@@ -32,8 +34,11 @@ export default function TaskPage({ tasks, bonusBalance, onAddTask, onCompleteTas
     <div className="page">
       <div className="page-scroll">
         <div className="card stat-card">
-          <div className="stat-label">累計ボーナス残高</div>
-          <div className="stat-number">{bonusBalance.toLocaleString()}円</div>
+          <div className="stat-label">タスクボーナス累計</div>
+          <div className="stat-number">{taskBonus.toLocaleString()}円</div>
+          <hr className="divider" style={{ margin: '0.6rem 0' }} />
+          <div className="stat-label">合計ボーナス累計（タスク＋タイマー）</div>
+          <div className="stat-number">{combinedBonus.toLocaleString()}円</div>
         </div>
 
         <div className="section-header">
@@ -114,8 +119,8 @@ export default function TaskPage({ tasks, bonusBalance, onAddTask, onCompleteTas
               <label>ボーナス額</label>
               <input
                 type="number"
-                value={taskBonus || ''}
-                onChange={e => setTaskBonus(Number(e.target.value))}
+                value={newTaskBonus || ''}
+                onChange={e => setNewTaskBonus(Number(e.target.value))}
                 placeholder="0"
                 min={0}
               />
