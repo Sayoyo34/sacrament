@@ -1,35 +1,31 @@
-type Page = 'simulator' | 'ledger' | 'tasks' | 'timer'
+import { PAGES, type Page } from '../theme'
 
 interface Props {
   page: Page
   onChange: (page: Page) => void
-  onSettings: () => void
 }
 
-const TABS: { id: Page; icon: string; label: string }[] = [
-  { id: 'simulator', icon: '🏠', label: 'シミュレーター' },
-  { id: 'ledger',    icon: '💰', label: '家計簿' },
-  { id: 'tasks',     icon: '✅', label: 'タスク' },
-  { id: 'timer',     icon: '⏱', label: 'タイマー' },
-]
-
-export default function BottomNav({ page, onChange, onSettings }: Props) {
+export default function BottomNav({ page, onChange }: Props) {
   return (
     <nav className="bottom-nav">
-      {TABS.map(tab => (
-        <button
-          key={tab.id}
-          className={`nav-item${page === tab.id ? ' active' : ''}`}
-          onClick={() => onChange(tab.id)}
-        >
-          <span className="nav-icon">{tab.icon}</span>
-          {tab.label}
-        </button>
-      ))}
-      <button className="nav-item" onClick={onSettings}>
-        <span className="nav-icon">⚙️</span>
-        設定
-      </button>
+      {PAGES.map(({ id, theme }) => {
+        const active = page === id
+        return (
+          <button
+            key={id}
+            className={`nav-item${active ? ' active' : ''}`}
+            onClick={() => onChange(id)}
+          >
+            <span
+              className="nav-icon"
+              style={active ? { background: theme.soft } : undefined}
+            >
+              {theme.icon}
+            </span>
+            <span style={active ? { color: theme.accent } : undefined}>{theme.label}</span>
+          </button>
+        )
+      })}
     </nav>
   )
 }

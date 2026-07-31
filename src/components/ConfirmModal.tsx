@@ -1,10 +1,12 @@
 interface Props {
   message: string
+  /** 実行ボタンの文言。既定は「削除する」 */
+  confirmText?: string
   onConfirm: () => void
   onCancel: () => void
 }
 
-export default function ConfirmModal({ message, onConfirm, onCancel }: Props) {
+export default function ConfirmModal({ message, confirmText = '削除する', onConfirm, onCancel }: Props) {
   return (
     <div className="modal-overlay" onClick={onCancel}>
       <div className="modal" onClick={e => e.stopPropagation()}>
@@ -16,7 +18,7 @@ export default function ConfirmModal({ message, onConfirm, onCancel }: Props) {
         <div className="form-actions">
           <button className="btn-sub" onClick={onCancel}>キャンセル</button>
           <button className="btn-danger" style={{ background: '#e53e3e', color: '#fff', border: 'none' }} onClick={onConfirm}>
-            削除する
+            {confirmText}
           </button>
         </div>
       </div>

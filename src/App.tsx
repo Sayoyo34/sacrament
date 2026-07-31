@@ -1,316 +1,318 @@
 import { useState, useEffect } from 'react'
-import type { Wallet, LedgerEntry, RecurringExpense, BulletItem, Task, TimerPreset } from './types'
-import SimulatorPage from './pages/SimulatorPage'
-import LedgerPage from './pages/LedgerPage'
-import TaskPage from './pages/TaskPage'
-import TimerPage from './pages/TimerPage'
+import type { Genre, LedgerEntry, PlanItem, SavingsEvent, Tag, Task, Wallet } from './types'
+import LedgerPage, { type EntryDraft, type WalletDraft } from './pages/LedgerPage'
+import PlansPage, { type PlanDraft } from './pages/PlansPage'
+import SavingsPage, { type TaskDraft } from './pages/SavingsPage'
+import AnalysisPage from './pages/AnalysisPage'
+import MorePage from './pages/MorePage'
 import BottomNav from './components/BottomNav'
+import type { LabelDraft } from './components/LabelManager'
+import { DEFAULT_GENRES, load, resetAll, save } from './storage'
+import type { Page } from './theme'
+import { generateId, todayStr } from './utils'
 import './App.css'
 
-type Page = 'simulator' | 'ledger' | 'tasks' | 'timer'
-
-function generateId() {
-  return Math.random().toString(36).slice(2)
-}
-
-function load<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw !== null ? (JSON.parse(raw) as T) : fallback
-  } catch { return fallback }
-}
-
-const DEFAULT_PRESETS: TimerPreset[] = [
-  { id: 'p10', name: '準備運動', minutes: 10 },
-  { id: 'p25', name: 'スパッと', minutes: 25 },
-  { id: 'p60', name: 'じっくり', minutes: 60 },
-]
-
 export default function App() {
-  const [page, setPage] = useState<Page>('simulator')
+  const [page, setPage] = useState<Page>('ledger')
 
   const [wallets, setWallets] = useState<Wallet[]>(() => load('wallets', []))
   const [entries, setEntries] = useState<LedgerEntry[]>(() => load('entries', []))
-  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>(() => load('recurringExpenses', []))
-  const [bulletItems, setBulletItems] = useState<BulletItem[]>(() => load('bulletItems', []))
+  const [planItems, setPlanItems] = useState<PlanItem[]>(() => load('planItems', []))
   const [tasks, setTasks] = useState<Task[]>(() => load('tasks', []))
-  const [taskBonus, setTaskBonus] = useState<number>(() => load('taskBonus', load('bonusBalance', 0)))
-  const [presets, setPresets] = useState<TimerPreset[]>(() => load('presets', DEFAULT_PRESETS))
-  const [totalMinutes, setTotalMinutes] = useState<number>(() => load('totalMinutes', 0))
-  const [bonusRate, setBonusRate] = useState<number>(() => load('bonusRate', 100))
-  const [capRate, setCapRate] = useState<number>(() => load('capRate', 20)) // 前借り上限（所持金の%）
-  const [bonusUsed, setBonusUsed] = useState<number>(() => load('bonusUsed', 0))
+  const [savingsEvents, setSavingsEvents] = useState<SavingsEvent[]>(() => load('savingsEvents', []))
+  const [genres, setGenres] = useState<Genre[]>(() => load('genres', DEFAULT_GENRES))
+  const [tags, setTags] = useState<Tag[]>(() => load('tags', []))
 
-  useEffect(() => { localStorage.setItem('wallets', JSON.stringify(wallets)) }, [wallets])
-  useEffect(() => { localStorage.setItem('entries', JSON.stringify(entries)) }, [entries])
-  useEffect(() => { localStorage.setItem('recurringExpenses', JSON.stringify(recurringExpenses)) }, [recurringExpenses])
-  useEffect(() => { localStorage.setItem('bulletItems', JSON.stringify(bulletItems)) }, [bulletItems])
-  useEffect(() => { localStorage.setItem('tasks', JSON.stringify(tasks)) }, [tasks])
-  useEffect(() => { localStorage.setItem('taskBonus', JSON.stringify(taskBonus)) }, [taskBonus])
-  useEffect(() => { localStorage.setItem('presets', JSON.stringify(presets)) }, [presets])
-  useEffect(() => { localStorage.setItem('totalMinutes', JSON.stringify(totalMinutes)) }, [totalMinutes])
-  useEffect(() => { localStorage.setItem('bonusRate', JSON.stringify(bonusRate)) }, [bonusRate])
-  useEffect(() => { localStorage.setItem('capRate', JSON.stringify(capRate)) }, [capRate])
-  useEffect(() => { localStorage.setItem('bonusUsed', JSON.stringify(bonusUsed)) }, [bonusUsed])
+  useEffect(() => { save('wallets', wallets) }, [wallets])
+  useEffect(() => { save('entries', entries) }, [entries])
+  useEffect(() => { save('planItems', planItems) }, [planItems])
+  useEffect(() => { save('tasks', tasks) }, [tasks])
+  useEffect(() => { save('savingsEvents', savingsEvents) }, [savingsEvents])
+  useEffect(() => { save('genres', genres) }, [genres])
+  useEffect(() => { save('tags', tags) }, [tags])
 
-  // 家計簿
-  function addWallet(name: string, initial: number) {
-    setWallets(prev => [...prev, { id: generateId(), name, balance: initial }])
+  // ── 家計簿 ─────────────────────────────
+  function saveEntry(d: EntryDraft) {
+    const signed = d.type === 'expense' ? -Math.abs(d.amount) : Math.abs(d.amount)
+    if (d.id === null) {
+      setEntries(prev => [...prev, {
+        id: generateId(), walletId: d.walletId, label: d.label, amount: signed,
+        date: d.date, genreId: d.genreId, tagIds: d.tagIds, memo: d.memo,
+      }])
+      setWallets(prev => prev.map(w => w.id === d.walletId ? { ...w, balance: w.balance + signed } : w))
+      return
+    }
+    const old = entries.find(e => e.id === d.id)
+    if (!old) return
+    setEntries(prev => prev.map(e => e.id === d.id
+      ? { ...e, walletId: d.walletId, label: d.label, amount: signed, date: d.date, genreId: d.genreId, tagIds: d.tagIds, memo: d.memo }
+      : e))
+    setWallets(prev => prev.map(w => {
+      let balance = w.balance
+      if (w.id === old.walletId) balance -= old.amount
+      if (w.id === d.walletId) balance += signed
+      return balance === w.balance ? w : { ...w, balance }
+    }))
   }
-  function editWallet(id: string, name: string, balance: number) {
-    setWallets(prev => prev.map(w => w.id === id ? { ...w, name, balance } : w))
-  }
-  function removeWallet(id: string) {
-    setWallets(prev => prev.filter(w => w.id !== id))
-    setEntries(prev => prev.filter(e => e.walletId !== id))
-    setRecurringExpenses(prev => prev.filter(r => r.walletId !== id))
-  }
-  function addEntry(walletId: string, label: string, amount: number, type: 'expense' | 'income', date: string) {
-    const signed = type === 'expense' ? -Math.abs(amount) : Math.abs(amount)
-    setEntries(prev => [...prev, { id: generateId(), walletId, label, amount: signed, date }])
-    setWallets(prev => prev.map(w => w.id === walletId ? { ...w, balance: w.balance + signed } : w))
-  }
+
   function removeEntry(id: string) {
     const e = entries.find(x => x.id === id)
     if (!e) return
     setEntries(prev => prev.filter(x => x.id !== id))
     setWallets(prev => prev.map(w => w.id === e.walletId ? { ...w, balance: w.balance - e.amount } : w))
   }
-  function editEntry(id: string, walletId: string, label: string, amount: number, type: 'expense' | 'income', date: string) {
-    const old = entries.find(x => x.id === id)
-    if (!old) return
-    const signed = type === 'expense' ? -Math.abs(amount) : Math.abs(amount)
-    setEntries(prev => prev.map(x => x.id === id ? { ...x, walletId, label, amount: signed, date } : x))
-    setWallets(prev => prev.map(w => {
-      let balance = w.balance
-      if (w.id === old.walletId) balance -= old.amount
-      if (w.id === walletId) balance += signed
-      return balance === w.balance ? w : { ...w, balance }
-    }))
-  }
-  function addRecurring(name: string, amount: number, dayOfMonth: number, walletId: string) {
-    setRecurringExpenses(prev => [...prev, { id: generateId(), name, amount, dayOfMonth, walletId }])
-  }
-  function editRecurring(id: string, name: string, amount: number, dayOfMonth: number, walletId: string) {
-    setRecurringExpenses(prev => prev.map(r => r.id === id ? { ...r, name, amount, dayOfMonth, walletId } : r))
-  }
-  function removeRecurring(id: string) {
-    setRecurringExpenses(prev => prev.filter(r => r.id !== id))
+
+  function saveWallet(d: WalletDraft) {
+    if (d.id === null) {
+      setWallets(prev => [...prev, { id: generateId(), name: d.name, balance: d.balance }])
+      return
+    }
+    setWallets(prev => prev.map(w => w.id === d.id ? { ...w, name: d.name, balance: d.balance } : w))
   }
 
-  // シミュレーター
-  function addBulletItem(name: string, cost: number) {
-    setBulletItems(prev => [...prev, { id: generateId(), name, estimatedCost: cost, deductedAmount: 0 }])
-  }
-  function deductFull(id: string) {
-    setBulletItems(prev => prev.map(i => i.id === id ? { ...i, deductedAmount: i.estimatedCost } : i))
-  }
-  function undoDeduct(id: string) {
-    setBulletItems(prev => prev.map(i => i.id === id ? { ...i, deductedAmount: 0 } : i))
-  }
-  function deductPartial(id: string, amount: number) {
-    setBulletItems(prev => prev.map(i => i.id === id
-      ? { ...i, deductedAmount: Math.min(i.estimatedCost, i.deductedAmount + amount) }
-      : i))
-  }
-  function undoPartial(id: string, amount: number) {
-    setBulletItems(prev => prev.map(i => i.id === id
-      ? { ...i, deductedAmount: Math.max(0, i.deductedAmount - amount) }
-      : i))
-  }
-  function editBulletItem(id: string, name: string, cost: number) {
-    setBulletItems(prev => prev.map(i => i.id === id ? { ...i, name, estimatedCost: cost } : i))
-  }
-  function removeBulletItem(id: string) {
-    setBulletItems(prev => prev.filter(i => i.id !== id))
-  }
-  function useBonusFull() {
-    setBonusUsed(bonusBalance)
-  }
-  function undoBonusUse() {
-    setBonusUsed(0)
-  }
-  function useBonusPartial(amount: number) {
-    setBonusUsed(prev => Math.min(bonusBalance, prev + amount))
-  }
-  function undoBonusPartial(amount: number) {
-    setBonusUsed(prev => Math.max(0, prev - amount))
+  function removeWallet(id: string) {
+    setWallets(prev => prev.filter(w => w.id !== id))
+    setEntries(prev => prev.filter(e => e.walletId !== id))
+    setPlanItems(prev => prev.map(p => p.walletId === id ? { ...p, walletId: '' } : p))
   }
 
-  // タスク
-  function addTask(name: string, bonus: number) {
-    setTasks(prev => [...prev, { id: generateId(), name, bonusAmount: bonus, completed: false, bonusApplied: false }])
+  // ── 予定 ───────────────────────────────
+  function savePlan(d: PlanDraft) {
+    if (d.id === null) {
+      const order = planItems.reduce((m, p) => Math.max(m, p.order), -1) + 1
+      setPlanItems(prev => [...prev, {
+        id: generateId(), name: d.name, kind: d.kind, estimatedCost: d.estimatedCost,
+        deductedAmount: 0, dayOfMonth: d.dayOfMonth, walletId: d.walletId,
+        genreId: d.genreId, tagIds: d.tagIds, memo: d.memo, order,
+      }])
+      return
+    }
+    setPlanItems(prev => prev.map(p => p.id === d.id ? {
+      ...p, name: d.name, kind: d.kind, estimatedCost: d.estimatedCost,
+      dayOfMonth: d.dayOfMonth, walletId: d.walletId,
+      genreId: d.genreId, tagIds: d.tagIds, memo: d.memo,
+      // 予測金額を下げたら引き済みがはみ出さないよう丸める
+      deductedAmount: Math.min(p.deductedAmount, d.estimatedCost),
+    } : p))
   }
+
+  function removePlan(id: string) {
+    setPlanItems(prev => prev.filter(p => p.id !== id))
+  }
+
+  function deductPlan(id: string, amount: number) {
+    setPlanItems(prev => prev.map(p => p.id === id
+      ? { ...p, deductedAmount: Math.min(p.estimatedCost, p.deductedAmount + amount) }
+      : p))
+  }
+
+  function undoDeductPlan(id: string, amount: number) {
+    setPlanItems(prev => prev.map(p => p.id === id
+      ? { ...p, deductedAmount: Math.max(0, p.deductedAmount - amount) }
+      : p))
+  }
+
+  // ── 貯金（タスク） ─────────────────────
+  function saveTask(d: TaskDraft) {
+    const minutes = d.useTimer ? Math.max(1, d.timerMinutes) : 0
+    if (d.id === null) {
+      const order = tasks.reduce((m, t) => Math.max(m, t.order), -1) + 1
+      setTasks(prev => [...prev, {
+        id: generateId(), name: d.name, bonusAmount: d.bonusAmount, repeat: d.repeat,
+        timerMinutes: minutes, completedDates: [], genreId: d.genreId, order,
+      }])
+      return
+    }
+    setTasks(prev => prev.map(t => t.id === d.id
+      ? { ...t, name: d.name, bonusAmount: d.bonusAmount, repeat: d.repeat, timerMinutes: minutes, genreId: d.genreId }
+      : t))
+  }
+
+  function removeTask(id: string) {
+    setTasks(prev => prev.filter(t => t.id !== id))
+    setSavingsEvents(prev => prev.filter(e => e.taskId !== id))
+  }
+
   function completeTask(id: string) {
     const t = tasks.find(x => x.id === id)
-    if (!t || t.completed) return
-    setTasks(prev => prev.map(x => x.id === id ? { ...x, completed: true, bonusApplied: true } : x))
-    setTaskBonus(prev => prev + t.bonusAmount)
-  }
-  function removeTask(id: string) {
-    const t = tasks.find(x => x.id === id)
-    if (t?.bonusApplied) setTaskBonus(prev => prev - t.bonusAmount)
-    setTasks(prev => prev.filter(x => x.id !== id))
+    if (!t) return
+    const today = todayStr()
+    const already = t.repeat === 'daily' ? t.completedDates.includes(today) : t.completedDates.length > 0
+    if (already) return
+
+    setTasks(prev => prev.map(x => x.id === id ? { ...x, completedDates: [...x.completedDates, today] } : x))
+    if (t.bonusAmount > 0) {
+      setSavingsEvents(prev => [...prev, {
+        id: generateId(), date: today, amount: t.bonusAmount, taskId: t.id, label: t.name,
+      }])
+    }
   }
 
-  // タイマー
-  function addPreset(name: string, minutes: number) {
-    setPresets(prev => [...prev, { id: generateId(), name, minutes }])
+  function uncompleteTask(id: string) {
+    const t = tasks.find(x => x.id === id)
+    if (!t) return
+    const today = todayStr()
+    // 一度きりは達成日がいつであれ取り消す。デイリーは今日の分だけ戻す
+    const removedDate = t.repeat === 'daily' ? today : t.completedDates[t.completedDates.length - 1]
+    if (removedDate === undefined) return
+
+    setTasks(prev => prev.map(x => x.id === id
+      ? { ...x, completedDates: x.completedDates.filter(d => d !== removedDate) }
+      : x))
+
+    setSavingsEvents(prev => {
+      const idx = prev.findIndex(e => e.taskId === id && e.date === removedDate)
+      return idx === -1 ? prev : prev.filter((_, i) => i !== idx)
+    })
   }
-  function editPreset(id: string, name: string, minutes: number) {
-    setPresets(prev => prev.map(p => p.id === id ? { ...p, name, minutes } : p))
+
+  // ── つもり貯金の切り崩し ────────────────
+  /** 切り崩しはマイナス額のイベントとして積む（履歴として残す） */
+  function withdrawSavings(amount: number) {
+    const capped = Math.min(amount, savingsKept)
+    if (capped <= 0) return
+    setSavingsEvents(prev => [...prev, {
+      id: generateId(), date: todayStr(), amount: -capped, taskId: '', label: '切り崩し',
+    }])
   }
-  function removePreset(id: string) {
-    setPresets(prev => prev.filter(p => p.id !== id))
+
+  /** 新しい切り崩しから順に取り消す。使い切ったイベントは消す */
+  function undoWithdrawSavings(amount: number) {
+    let left = Math.min(amount, savingsWithdrawn)
+    if (left <= 0) return
+    setSavingsEvents(prev => {
+      const next = [...prev]
+      for (let i = next.length - 1; i >= 0 && left > 0; i--) {
+        const ev = next[i]
+        if (ev.amount >= 0) continue
+        const take = Math.min(left, -ev.amount)
+        left -= take
+        const rest = ev.amount + take
+        if (rest === 0) next.splice(i, 1)
+        else next[i] = { ...ev, amount: rest }
+      }
+      return next
+    })
   }
-  function handleTimerComplete(completedMinutes: number) {
-    setTotalMinutes(prev => prev + completedMinutes)
+
+  // ── ジャンル / タグ ────────────────────
+  function saveGenre(d: LabelDraft) {
+    if (d.id === null) {
+      setGenres(prev => [...prev, { id: generateId(), name: d.name, color: d.color, icon: d.icon || '📦' }])
+      return
+    }
+    setGenres(prev => prev.map(g => g.id === d.id ? { ...g, name: d.name, color: d.color, icon: d.icon || '📦' } : g))
+  }
+
+  /** 削除したジャンルを参照している項目は未設定に戻す */
+  function removeGenre(id: string) {
+    setGenres(prev => prev.filter(g => g.id !== id))
+    setEntries(prev => prev.map(e => e.genreId === id ? { ...e, genreId: '' } : e))
+    setPlanItems(prev => prev.map(p => p.genreId === id ? { ...p, genreId: '' } : p))
+    setTasks(prev => prev.map(t => t.genreId === id ? { ...t, genreId: '' } : t))
+  }
+
+  function saveTag(d: LabelDraft) {
+    if (d.id === null) {
+      setTags(prev => [...prev, { id: generateId(), name: d.name, color: d.color }])
+      return
+    }
+    setTags(prev => prev.map(t => t.id === d.id ? { ...t, name: d.name, color: d.color } : t))
+  }
+
+  /** 削除したタグは各項目のタグ一覧からも外す */
+  function removeTag(id: string) {
+    setTags(prev => prev.filter(t => t.id !== id))
+    setEntries(prev => prev.map(e => e.tagIds.includes(id) ? { ...e, tagIds: e.tagIds.filter(x => x !== id) } : e))
+    setPlanItems(prev => prev.map(p => p.tagIds.includes(id) ? { ...p, tagIds: p.tagIds.filter(x => x !== id) } : p))
+  }
+
+  // ── リセット ───────────────────────────
+  function handleReset() {
+    resetAll()
+    setWallets([])
+    setEntries([])
+    setPlanItems([])
+    setTasks([])
+    setSavingsEvents([])
+    setGenres(DEFAULT_GENRES)
+    setTags([])
+    setPage('ledger')
   }
 
   const totalBalance = wallets.reduce((s, w) => s + w.balance, 0)
-  const timerBonus = Math.floor(totalMinutes / 10) * bonusRate
-  const bonusBalance = taskBonus + timerBonus
-  const availableBonus = Math.max(0, bonusBalance - bonusUsed)
-  const bonusCap = Math.max(0, Math.floor(totalBalance * (capRate / 100)))
-  const effectiveBonus = Math.min(availableBonus, bonusCap)
-  const totalDeducted = bulletItems.reduce((s, i) => s + i.deductedAmount, 0)
-  const totalPending = bulletItems.reduce((s, i) => s + (i.estimatedCost - i.deductedAmount), 0)
-  const remainingBudget = totalBalance + effectiveBonus - totalDeducted
-
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [confirmReset, setConfirmReset] = useState(false)
-
-  function resetAllData() {
-    const keys = ['wallets','entries','recurringExpenses','bulletItems','tasks','taskBonus','bonusBalance','presets','totalMinutes','bonusRate','capRate','bonusUsed']
-    keys.forEach(k => localStorage.removeItem(k))
-    setWallets([])
-    setEntries([])
-    setRecurringExpenses([])
-    setBulletItems([])
-    setTasks([])
-    setTaskBonus(0)
-    setPresets(DEFAULT_PRESETS)
-    setTotalMinutes(0)
-    setBonusRate(100)
-    setCapRate(20)
-    setBonusUsed(0)
-    setSettingsOpen(false)
-    setConfirmReset(false)
-  }
+  // 貯めた額（プラス）と切り崩した額（マイナス）を分けて持ち、差し引きが取っておく額になる
+  const savingsEarned = savingsEvents.reduce((s, e) => s + Math.max(0, e.amount), 0)
+  const savingsWithdrawn = savingsEvents.reduce((s, e) => s + Math.max(0, -e.amount), 0)
+  const savingsKept = savingsEarned - savingsWithdrawn
 
   return (
     <div className="app-shell">
       <div className="page-content">
-        {page === 'simulator' && (
-          <SimulatorPage
-            totalBalance={totalBalance}
-            bonusBalance={bonusBalance}
-            availableBonus={availableBonus}
-            bonusUsed={bonusUsed}
-            effectiveBonus={effectiveBonus}
-            bonusCap={bonusCap}
-            remainingBudget={remainingBudget}
-            bulletItems={bulletItems}
-            totalDeducted={totalDeducted}
-            totalPending={totalPending}
-            onAddItem={addBulletItem}
-            onEditItem={editBulletItem}
-            onDeductFull={deductFull}
-            onUndoDeduct={undoDeduct}
-            onDeductPartial={deductPartial}
-            onUndoPartial={undoPartial}
-            onRemoveItem={removeBulletItem}
-            onUseBonusFull={useBonusFull}
-            onUndoBonusUse={undoBonusUse}
-            onUseBonusPartial={useBonusPartial}
-            onUndoBonusPartial={undoBonusPartial}
-          />
-        )}
         {page === 'ledger' && (
           <LedgerPage
             wallets={wallets}
             entries={entries}
-            recurringExpenses={recurringExpenses}
+            genres={genres}
+            tags={tags}
             totalBalance={totalBalance}
-            onAddWallet={addWallet}
-            onEditWallet={editWallet}
-            onRemoveWallet={removeWallet}
-            onAddEntry={addEntry}
-            onEditEntry={editEntry}
+            onSaveEntry={saveEntry}
             onRemoveEntry={removeEntry}
-            onAddRecurring={addRecurring}
-            onEditRecurring={editRecurring}
-            onRemoveRecurring={removeRecurring}
+            onSaveWallet={saveWallet}
+            onRemoveWallet={removeWallet}
           />
         )}
-        {page === 'tasks' && (
-          <TaskPage
+        {page === 'savings' && (
+          <SavingsPage
             tasks={tasks}
-            taskBonus={taskBonus}
-            timerBonus={timerBonus}
-            onAddTask={addTask}
-            onCompleteTask={completeTask}
+            savingsEvents={savingsEvents}
+            genres={genres}
+            savingsEarned={savingsEarned}
+            savingsWithdrawn={savingsWithdrawn}
+            onSaveTask={saveTask}
             onRemoveTask={removeTask}
+            onCompleteTask={completeTask}
+            onUncompleteTask={uncompleteTask}
           />
         )}
-        {page === 'timer' && (
-          <TimerPage
-            presets={presets}
-            totalMinutes={totalMinutes}
-            bonusRate={bonusRate}
-            taskBonus={taskBonus}
-            onSetBonusRate={setBonusRate}
-            onTimerComplete={handleTimerComplete}
-            onAddPreset={addPreset}
-            onEditPreset={editPreset}
-            onRemovePreset={removePreset}
+        {page === 'plans' && (
+          <PlansPage
+            planItems={planItems}
+            wallets={wallets}
+            genres={genres}
+            tags={tags}
+            totalBalance={totalBalance}
+            savingsEarned={savingsEarned}
+            savingsWithdrawn={savingsWithdrawn}
+            onSavePlan={savePlan}
+            onRemovePlan={removePlan}
+            onDeduct={deductPlan}
+            onUndoDeduct={undoDeductPlan}
+            onWithdrawSavings={withdrawSavings}
+            onUndoWithdrawSavings={undoWithdrawSavings}
+          />
+        )}
+        {page === 'analysis' && (
+          <AnalysisPage
+            entries={entries}
+            genres={genres}
+            tasks={tasks}
+            savingsEvents={savingsEvents}
+          />
+        )}
+        {page === 'more' && (
+          <MorePage
+            genres={genres}
+            tags={tags}
+            onSaveGenre={saveGenre}
+            onRemoveGenre={removeGenre}
+            onSaveTag={saveTag}
+            onRemoveTag={removeTag}
+            onReset={handleReset}
           />
         )}
       </div>
-      <BottomNav page={page} onChange={setPage} onSettings={() => setSettingsOpen(true)} />
-
-      {settingsOpen && (
-        <div className="modal-overlay" onClick={() => { setSettingsOpen(false); setConfirmReset(false) }}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-handle" />
-            <div className="modal-title">設定</div>
-
-            <div className="form-row">
-              <label>ボーナス前借り上限（所持金の%）</label>
-              <input
-                type="number"
-                value={capRate}
-                onChange={e => setCapRate(Number(e.target.value))}
-                min={0}
-                max={100}
-                step={5}
-              />
-              <p className="summary" style={{ marginTop: '0.35rem' }}>
-                今の上限額: {bonusCap.toLocaleString()}円（獲得済み {bonusBalance.toLocaleString()}円 / 使用済み {bonusUsed.toLocaleString()}円 / 反映中 {effectiveBonus.toLocaleString()}円）
-              </p>
-            </div>
-            <hr className="divider" />
-
-            {confirmReset ? (
-              <>
-                <p style={{ fontSize: '0.9rem', marginBottom: '1rem', color: 'var(--text-h)' }}>
-                  すべてのデータを削除します。この操作は取り消せません。
-                </p>
-                <div className="form-actions">
-                  <button className="btn-sub" onClick={() => setConfirmReset(false)}>キャンセル</button>
-                  <button className="btn-danger" style={{ background: '#e53e3e', color: '#fff', border: 'none' }} onClick={resetAllData}>
-                    削除する
-                  </button>
-                </div>
-              </>
-            ) : (
-              <button className="btn-danger" onClick={() => setConfirmReset(true)}>
-                データをすべてリセット
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      <BottomNav page={page} onChange={setPage} />
     </div>
   )
 }
