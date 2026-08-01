@@ -2,10 +2,11 @@ import { useState } from 'react'
 import type { Genre, LedgerEntry, Tag, Wallet } from '../types'
 import DetailModal, { DetailBlock, DetailRow } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
-import { GenreDot, GenreSelect, TagList, TagPicker } from '../components/Pickers'
+import { GenreDot, GenreSelect, TagFilter, TagList, TagPicker } from '../components/Pickers'
 import TopTabs from '../components/TopTabs'
 import { themeOf } from '../theme'
-import { monthLabel, monthOf, thisMonth, todayStr, yen } from '../utils'
+import { matchesTags, monthLabel, monthOf, thisMonth, todayStr, yen } from '../utils'
+import { firstError, positive, required, selected } from '../validation'
 
 type Tab = 'ledger' | 'wallet'
 
@@ -55,9 +56,12 @@ export default function LedgerPage({
   const [draft, setDraft] = useState<EntryDraft | null>(null)
   const [walletDraft, setWalletDraft] = useState<WalletDraft | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ kind: 'entry' | 'wallet'; id: string; name: string } | null>(null)
+  const [filterTags, setFilterTags] = useState<string[]>([])
+  const [entryError, setEntryError] = useState('')
+  const [walletError, setWalletError] = useState('')
 
   const monthEntries = entries
-    .filter(e => monthOf(e.date) === month)
+    .filter(e => monthOf(e.date) === month && matchesTags(e.tagIds, filterTags))
     .slice()
     .sort((a, b) => b.date.localeCompare(a.date))
 
@@ -65,8 +69,20 @@ export default function LedgerPage({
     .filter(e => e.amount < 0)
     .reduce((s, e) => s + Math.abs(e.amount), 0)
 
+  const filterNames = filterTags
+    .map(id => tags.find(t => t.id === id)?.name)
+    .filter(Boolean)
+    .map(n => `#${n}`)
+    .join(' ')
+
   function openNewEntry() {
-    if (wallets.length === 0) { setTab('wallet'); openNewWallet(); return }
+    if (wallets.length === 0) {
+      setTab('wallet')
+      openNewWallet()
+      setWalletError('取引を記録するには、先に口座を1つ作ってください')
+      return
+    }
+    setEntryError('')
     setDraft({
       id: null, label: '', amount: 0, type: 'expense', date: todayStr(),
       walletId: wallets[0].id, genreId: '', tagIds: [], memo: '',
@@ -74,6 +90,7 @@ export default function LedgerPage({
   }
 
   function openEntry(e: LedgerEntry) {
+    setEntryError('')
     setDraft({
       id: e.id,
       label: e.label,
@@ -88,19 +105,31 @@ export default function LedgerPage({
   }
 
   function saveEntry() {
-    if (!draft || !draft.label.trim() || !draft.walletId || draft.amount === 0) return
+    if (!draft) return
+    const error = firstError(
+      required(draft.label, '項目名'),
+      selected(draft.walletId, '口座'),
+      positive(draft.amount, '金額'),
+      required(draft.date, '日付'),
+    )
+    if (error) { setEntryError(error); return }
     onSaveEntry({ ...draft, label: draft.label.trim() })
     setDraft(null)
+    setEntryError('')
   }
 
   function openNewWallet() {
+    setWalletError('')
     setWalletDraft({ id: null, name: '', balance: 0 })
   }
 
   function saveWallet() {
-    if (!walletDraft || !walletDraft.name.trim()) return
+    if (!walletDraft) return
+    const error = firstError(required(walletDraft.name, '口座名'))
+    if (error) { setWalletError(error); return }
     onSaveWallet({ ...walletDraft, name: walletDraft.name.trim() })
     setWalletDraft(null)
+    setWalletError('')
   }
 
   const draftGenre = genres.find(g => g.id === draft?.genreId)
@@ -119,7 +148,9 @@ export default function LedgerPage({
         {tab === 'ledger' ? (
           <>
             <div className="hero-card">
-              <div className="hero-label">{monthLabel(month)}の出費</div>
+              <div className="hero-label">
+                {monthLabel(month)}の出費{filterNames && `（${filterNames}）`}
+              </div>
               <div className="hero-number">¥{monthExpense.toLocaleString()}</div>
             </div>
 
@@ -131,8 +162,14 @@ export default function LedgerPage({
               </span>
             </div>
 
+            <TagFilter tags={tags} selected={filterTags} onChange={setFilterTags} />
+
             {monthEntries.length === 0 ? (
-              <p className="empty-hint">この月の記録がありません<br />+ボタンで追加できます</p>
+              <p className="empty-hint">
+                {filterTags.length > 0
+                  ? <>絞り込みに一致する記録がありません<br />タグを外すと全件表示されます</>
+                  : <>この月の記録がありません<br />+ボタンで追加できます</>}
+              </p>
             ) : (
               <ul className="item-list">
                 {monthEntries.map(e => {
@@ -209,8 +246,9 @@ export default function LedgerPage({
           name={draft.label}
           onNameChange={v => setDraft({ ...draft, label: v })}
           namePlaceholder="例: 新幹線"
-          onClose={() => setDraft(null)}
+          onClose={() => { setDraft(null); setEntryError('') }}
           onSave={saveEntry}
+          error={entryError}
           onDelete={draft.id ? () => setDeleteTarget({ kind: 'entry', id: draft.id!, name: draft.label }) : undefined}
         >
           <DetailRow icon="🔁" label="種別">
@@ -272,8 +310,9 @@ export default function LedgerPage({
           name={walletDraft.name}
           onNameChange={v => setWalletDraft({ ...walletDraft, name: v })}
           namePlaceholder="例: PayPay"
-          onClose={() => setWalletDraft(null)}
+          onClose={() => { setWalletDraft(null); setWalletError('') }}
           onSave={saveWallet}
+          error={walletError}
           onDelete={walletDraft.id ? () => setDeleteTarget({ kind: 'wallet', id: walletDraft.id!, name: walletDraft.name }) : undefined}
         >
           <DetailRow icon="💰" label="残高">

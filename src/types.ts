@@ -58,15 +58,51 @@ export interface Task {
   timerMinutes: number;     // 0 = タイマーなし。1以上なら達成に計測が必要
   completedDates: string[]; // YYYY-MM-DD の達成履歴。連続日数と分析の材料
   genreId: string;
+  goalId: string;           // 貯めた分の行き先。'' = 指定なし
   order: number;
 }
 
-/** つもり貯金の発生ログ。分析>貯金履歴の月別棒グラフはこれを集計する */
+/** 貯金目標に実績を足した表示用の行。'' は行き先を決めていない分 */
+export interface GoalRow {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  targetAmount: number;
+  earned: number;
+  withdrawn: number;
+  kept: number;
+}
+
+/** 貯金目標の編集内容 */
+export interface GoalDraft {
+  id: string | null;
+  name: string;
+  icon: string;
+  color: string;
+  targetAmount: number;
+}
+
+/** つもり貯金の行き先。緊急用・一人暮らし初期費用など */
+export interface Goal {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  targetAmount: number;  // 0 = 上限なし
+  order: number;
+}
+
+/**
+ * つもり貯金の発生ログ。分析>貯金履歴の月別棒グラフはこれを集計する。
+ * amount が負なら切り崩し。
+ */
 export interface SavingsEvent {
   id: string;
   date: string;       // YYYY-MM-DD
   amount: number;
   taskId: string;     // '' = 移行分・手動追加
+  goalId: string;     // '' = 貯金先の指定なし
   label: string;
 }
 

@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import type { Genre, PlanItem, PlanKind, Tag, Wallet } from '../types'
+import type { Genre, GoalRow, PlanItem, PlanKind, Tag, Wallet } from '../types'
 import DetailModal, { DetailBlock, DetailRow } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
 import { GenreDot, GenreSelect, TagList, TagPicker } from '../components/Pickers'
 import TopTabs from '../components/TopTabs'
 import { themeOf } from '../theme'
 import { yen } from '../utils'
+import { firstError, inRange, notNegative, required, withinAmount } from '../validation'
 
 type Tab = 'list' | 'calc'
 
@@ -27,14 +28,13 @@ interface Props {
   genres: Genre[]
   tags: Tag[]
   totalBalance: number
-  savingsEarned: number
-  savingsWithdrawn: number
+  goalRows: GoalRow[]
   onSavePlan: (draft: PlanDraft) => void
   onRemovePlan: (id: string) => void
   onDeduct: (id: string, amount: number) => void
   onUndoDeduct: (id: string, amount: number) => void
-  onWithdrawSavings: (amount: number) => void
-  onUndoWithdrawSavings: (amount: number) => void
+  onWithdrawSavings: (goalId: string, amount: number) => void
+  onUndoWithdrawSavings: (goalId: string, amount: number) => void
 }
 
 function Progress({ ratio, color }: { ratio: number; color: string }) {
@@ -56,11 +56,27 @@ function DeductControls({ remaining, done, accent, onDeduct, onUndo, confirmLabe
 }) {
   const [partial, setPartial] = useState<{ mode: 'deduct' | 'undo'; amount: number } | null>(null)
   const [confirming, setConfirming] = useState<number | null>(null)
+  const [error, setError] = useState('')
 
   function requestDeduct(amount: number) {
-    if (amount <= 0 || amount > remaining) return
+    const e = withinAmount(amount, remaining)()
+    if (e) { setError(e); return }
+    setError('')
     if (confirmLabel) setConfirming(amount)
     else { onDeduct(amount); setPartial(null) }
+  }
+
+  function requestUndo(amount: number) {
+    const e = withinAmount(amount, done)()
+    if (e) { setError(e); return }
+    setError('')
+    onUndo(amount)
+    setPartial(null)
+  }
+
+  function openPartial(mode: 'deduct' | 'undo') {
+    setError('')
+    setPartial({ mode, amount: 0 })
   }
 
   return (
@@ -69,13 +85,13 @@ function DeductControls({ remaining, done, accent, onDeduct, onUndo, confirmLabe
         {remaining > 0 && (
           <>
             <button style={{ background: accent }} onClick={() => requestDeduct(remaining)}>全額引く</button>
-            <button className="btn-sub" onClick={() => setPartial({ mode: 'deduct', amount: 0 })}>一部引く</button>
+            <button className="btn-sub" onClick={() => openPartial('deduct')}>一部引く</button>
           </>
         )}
         {done > 0 && (
           <>
-            <button className="btn-sub" onClick={() => setPartial({ mode: 'undo', amount: 0 })}>一部戻す</button>
-            <button className="btn-sub" onClick={() => onUndo(done)}>全額戻す</button>
+            <button className="btn-sub" onClick={() => openPartial('undo')}>一部戻す</button>
+            <button className="btn-sub" onClick={() => { setError(''); onUndo(done) }}>全額戻す</button>
           </>
         )}
       </div>
@@ -92,18 +108,15 @@ function DeductControls({ remaining, done, accent, onDeduct, onUndo, confirmLabe
           />
           <button
             style={{ background: accent }}
-            onClick={() => {
-              if (partial.mode === 'deduct') { requestDeduct(partial.amount); return }
-              if (partial.amount <= 0 || partial.amount > done) return
-              onUndo(partial.amount)
-              setPartial(null)
-            }}
+            onClick={() => partial.mode === 'deduct' ? requestDeduct(partial.amount) : requestUndo(partial.amount)}
           >
             確定
           </button>
-          <button className="btn-sub" onClick={() => setPartial(null)}>×</button>
+          <button className="btn-sub" onClick={() => { setPartial(null); setError('') }}>×</button>
         </div>
       )}
+
+      {error && <p className="form-error" role="alert">{error}</p>}
 
       {confirming !== null && confirmLabel && (
         <ConfirmModal
@@ -118,16 +131,17 @@ function DeductControls({ remaining, done, accent, onDeduct, onUndo, confirmLabe
 }
 
 export default function PlansPage({
-  planItems, wallets, genres, tags, totalBalance, savingsEarned, savingsWithdrawn,
+  planItems, wallets, genres, tags, totalBalance, goalRows,
   onSavePlan, onRemovePlan, onDeduct, onUndoDeduct, onWithdrawSavings, onUndoWithdrawSavings,
 }: Props) {
   const theme = themeOf('plans')
   const [tab, setTab] = useState<Tab>('list')
   const [editing, setEditing] = useState<PlanDraft | null>(null)   // 一覧タブ：内容の編集
   const [deducting, setDeducting] = useState<string | null>(null)  // 計算タブ：引く/戻す
-  const [savingsOpen, setSavingsOpen] = useState(false)
+  const [savingsGoalId, setSavingsGoalId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const [breakdown, setBreakdown] = useState(false)
+  const [editError, setEditError] = useState('')
 
   const sorted = planItems.slice().sort((a, b) => a.order - b.order)
   const once = sorted.filter(p => p.kind === 'once')
@@ -135,14 +149,17 @@ export default function PlansPage({
 
   const deducted = once.reduce((s, p) => s + p.deductedAmount, 0)
   const monthlyTotal = monthly.reduce((s, p) => s + p.estimatedCost, 0)
-  const savingsKept = savingsEarned - savingsWithdrawn
+  const savingsKept = goalRows.reduce((s, g) => s + g.kept, 0)
   const remaining = totalBalance - deducted - monthlyTotal - savingsKept
+
+  const savingsTarget = savingsGoalId !== null ? goalRows.find(g => g.id === savingsGoalId) ?? null : null
 
   const target = deducting ? planItems.find(p => p.id === deducting) ?? null : null
   const editGenre = genres.find(g => g.id === editing?.genreId)
   const targetGenre = genres.find(g => g.id === target?.genreId)
 
   function openNew() {
+    setEditError('')
     setEditing({
       id: null, name: '', kind: 'once', estimatedCost: 0, dayOfMonth: 0,
       walletId: wallets[0]?.id ?? '', genreId: '', tagIds: [], memo: '',
@@ -150,6 +167,7 @@ export default function PlansPage({
   }
 
   function openEdit(p: PlanItem) {
+    setEditError('')
     setEditing({
       id: p.id, name: p.name, kind: p.kind, estimatedCost: p.estimatedCost,
       dayOfMonth: p.dayOfMonth, walletId: p.walletId, genreId: p.genreId,
@@ -158,9 +176,19 @@ export default function PlansPage({
   }
 
   function saveEdit() {
-    if (!editing || !editing.name.trim()) return
+    if (!editing) return
+    const error = firstError(
+      required(editing.name, '予定名'),
+      notNegative(editing.estimatedCost, '金額'),
+      // 引き落とし日は任意。入れるなら 1〜31
+      () => editing.kind === 'monthly' && editing.dayOfMonth !== 0
+        ? inRange(editing.dayOfMonth, 1, 31, '引き落とし日')()
+        : null,
+    )
+    if (error) { setEditError(error); return }
     onSavePlan({ ...editing, name: editing.name.trim() })
     setEditing(null)
+    setEditError('')
   }
 
   function renderRow(p: PlanItem) {
@@ -240,29 +268,37 @@ export default function PlansPage({
 
         {tab === 'calc' && (
           <>
-            <div className="section-header"><h3>貯金 (つもり貯金)</h3></div>
-            <ul className="item-list">
-              <li>
-                <button className="row-card" onClick={() => setSavingsOpen(true)}>
-                  <GenreDot genres={genres} genreId="" fallback="🐷" />
-                  <span className="row-main">
-                    <span className="row-title">つもり貯金</span>
-                    <Progress
-                      ratio={savingsEarned > 0 ? savingsWithdrawn / savingsEarned : 0}
-                      color={theme.accent}
-                    />
-                  </span>
-                  <span className="row-right">
-                    <span className="row-note">
-                      ¥{savingsWithdrawn.toLocaleString()} / {savingsEarned.toLocaleString()}
-                    </span>
-                    <span className="row-amount" style={{ color: theme.accent }}>
-                      残 ¥{savingsKept.toLocaleString()}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            </ul>
+            <div className="section-header"><h3>貯金 ({goalRows.length})</h3></div>
+            {goalRows.length === 0 ? (
+              <p className="empty-hint">つもり貯金がありません</p>
+            ) : (
+              <ul className="item-list">
+                {goalRows.map(g => (
+                  <li key={g.id || '__none'}>
+                    <button className="row-card" onClick={() => setSavingsGoalId(g.id)}>
+                      <span className="genre-dot" style={{ background: `${g.color}33`, width: 34, height: 34, fontSize: 17 }}>
+                        {g.icon}
+                      </span>
+                      <span className="row-main">
+                        <span className="row-title">{g.name}</span>
+                        <Progress
+                          ratio={g.earned > 0 ? g.withdrawn / g.earned : 0}
+                          color={g.color}
+                        />
+                      </span>
+                      <span className="row-right">
+                        <span className="row-note">
+                          切崩 ¥{g.withdrawn.toLocaleString()} / {g.earned.toLocaleString()}
+                        </span>
+                        <span className="row-amount" style={{ color: g.color }}>
+                          残 ¥{g.kept.toLocaleString()}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'center', padding: '0.5rem 0 0' }}>
               <button
@@ -296,8 +332,9 @@ export default function PlansPage({
           name={editing.name}
           onNameChange={v => setEditing({ ...editing, name: v })}
           namePlaceholder="例: ライブ遠征費"
-          onClose={() => setEditing(null)}
+          onClose={() => { setEditing(null); setEditError('') }}
           onSave={saveEdit}
+          error={editError}
           onDelete={editing.id ? () => setDeleteTarget({ id: editing.id!, name: editing.name }) : undefined}
         >
           <DetailRow icon="🔁" label="種類">
@@ -417,36 +454,41 @@ export default function PlansPage({
         </DetailModal>
       )}
 
-      {/* 計算タブ：つもり貯金の切り崩し */}
-      {savingsOpen && (
+      {/* 計算タブ：つもり貯金の切り崩し（貯金目標ごと） */}
+      {savingsTarget && (
         <DetailModal
-          icon="🐷"
-          color={theme.soft}
-          name="つもり貯金"
-          onClose={() => setSavingsOpen(false)}
+          icon={savingsTarget.icon}
+          color={`${savingsTarget.color}55`}
+          name={savingsTarget.name}
+          onClose={() => setSavingsGoalId(null)}
         >
           <DetailRow icon="💰" label="貯めた額">
-            <span className="detail-value">{yen(savingsEarned)}</span>
+            <span className="detail-value">{yen(savingsTarget.earned)}</span>
           </DetailRow>
           <DetailRow icon="✂️" label="切り崩し済み">
-            <span className="detail-value">{yen(savingsWithdrawn)}</span>
+            <span className="detail-value">{yen(savingsTarget.withdrawn)}</span>
           </DetailRow>
           <DetailRow icon="🐷" label="残り">
-            <span className="detail-value">{yen(savingsKept)}</span>
+            <span className="detail-value">{yen(savingsTarget.kept)}</span>
           </DetailRow>
+          {savingsTarget.targetAmount > 0 && (
+            <DetailRow icon="🎯" label="目標額">
+              <span className="detail-value">{yen(savingsTarget.targetAmount)}</span>
+            </DetailRow>
+          )}
 
           <DetailBlock icon="✂️" label="切り崩す / 戻す">
             <p className="summary" style={{ marginBottom: '0.6rem' }}>
               切り崩した分は取っておく額から外れ、その分だけ使える金額が増えます。
             </p>
             <DeductControls
-              remaining={savingsKept}
-              done={savingsWithdrawn}
+              remaining={savingsTarget.kept}
+              done={savingsTarget.withdrawn}
               accent={theme.accent}
-              onDeduct={onWithdrawSavings}
-              onUndo={onUndoWithdrawSavings}
+              onDeduct={amount => onWithdrawSavings(savingsTarget.id, amount)}
+              onUndo={amount => onUndoWithdrawSavings(savingsTarget.id, amount)}
               confirmLabel={amount =>
-                `つもり貯金から ${yen(amount)} を切り崩します。取っておくはずだったお金です。本当によろしいですか？`}
+                `「${savingsTarget.name}」から ${yen(amount)} を切り崩します。取っておくはずだったお金です。本当によろしいですか？`}
             />
           </DetailBlock>
         </DetailModal>

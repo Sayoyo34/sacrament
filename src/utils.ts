@@ -29,6 +29,11 @@ export function monthLabel(month: string) {
   return `${y}年${Number(m)}月`
 }
 
+/** YYYY-MM-DD または YYYY-MM → YYYY */
+export function yearOf(date: string) {
+  return date.slice(0, 4)
+}
+
 /** 直近nヶ月を古い順で返す（YYYY-MM） */
 export function recentMonths(n: number) {
   const out: string[] = []
@@ -62,4 +67,9 @@ export function recentDays(n: number) {
 
 export function yen(n: number) {
   return `${n.toLocaleString()}円`
+}
+
+/** 絞り込み用。選んだタグをすべて持っていれば一致（AND条件） */
+export function matchesTags(itemTagIds: string[], selected: string[]) {
+  return selected.every(id => itemTagIds.includes(id))
 }

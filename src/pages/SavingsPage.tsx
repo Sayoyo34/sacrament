@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ActiveTimer, Genre, SavingsEvent, Task, TaskRepeat } from '../types'
-import DetailModal, { DetailRow } from '../components/DetailModal'
+import type { ActiveTimer, Genre, GoalDraft, GoalRow, SavingsEvent, Task, TaskRepeat } from '../types'
+import DetailModal, { DetailBlock, DetailRow } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
 import { GenreDot, GenreSelect } from '../components/Pickers'
+import { ColorSwatches, IconSwatches } from '../components/Swatches'
 import TopTabs from '../components/TopTabs'
 import { themeOf } from '../theme'
-import { monthLabel, monthOf, recentDays, thisMonth, todayStr } from '../utils'
+import { monthLabel, monthOf, recentDays, thisMonth, todayStr, yen } from '../utils'
+import { firstError, notNegative, required } from '../validation'
 
 type Tab = 'tasks' | 'goals'
 
@@ -17,18 +19,22 @@ interface TaskDraft {
   useTimer: boolean
   timerMinutes: number
   genreId: string
+  goalId: string
 }
 
 interface Props {
   tasks: Task[]
   savingsEvents: SavingsEvent[]
   genres: Genre[]
+  goalRows: GoalRow[]
   savingsEarned: number
   savingsWithdrawn: number
   onSaveTask: (draft: TaskDraft) => void
   onRemoveTask: (id: string) => void
   onCompleteTask: (id: string) => void
   onUncompleteTask: (id: string) => void
+  onSaveGoal: (draft: GoalDraft) => void
+  onRemoveGoal: (id: string) => void
 }
 
 function fmt(seconds: number) {
@@ -38,11 +44,15 @@ function fmt(seconds: number) {
 }
 
 export default function SavingsPage({
-  tasks, savingsEvents, genres, savingsEarned, savingsWithdrawn,
-  onSaveTask, onRemoveTask, onCompleteTask, onUncompleteTask,
+  tasks, savingsEvents, genres, goalRows, savingsEarned, savingsWithdrawn,
+  onSaveTask, onRemoveTask, onCompleteTask, onUncompleteTask, onSaveGoal, onRemoveGoal,
 }: Props) {
   const savingsKept = savingsEarned - savingsWithdrawn
   const theme = themeOf('savings')
+  const [goalDraft, setGoalDraft] = useState<GoalDraft | null>(null)
+  const [deleteGoal, setDeleteGoal] = useState<GoalRow | null>(null)
+  const [taskError, setTaskError] = useState('')
+  const [goalError, setGoalError] = useState('')
   const [tab, setTab] = useState<Tab>('tasks')
   const [draft, setDraft] = useState<TaskDraft | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
@@ -95,19 +105,28 @@ export default function SavingsPage({
   }
 
   function openNew() {
-    setDraft({ id: null, name: '', bonusAmount: 0, repeat: 'once', useTimer: false, timerMinutes: 25, genreId: '' })
+    setTaskError('')
+    setDraft({ id: null, name: '', bonusAmount: 0, repeat: 'once', useTimer: false, timerMinutes: 25, genreId: '', goalId: '' })
   }
 
   function openTask(t: Task) {
+    setTaskError('')
     setDraft({
       id: t.id, name: t.name, bonusAmount: t.bonusAmount, repeat: t.repeat,
-      useTimer: t.timerMinutes > 0, timerMinutes: t.timerMinutes || 25, genreId: t.genreId,
+      useTimer: t.timerMinutes > 0, timerMinutes: t.timerMinutes || 25, genreId: t.genreId, goalId: t.goalId,
     })
   }
 
   function saveTask() {
-    if (!draft || !draft.name.trim()) return
+    if (!draft) return
+    const error = firstError(
+      required(draft.name, 'タスク名'),
+      notNegative(draft.bonusAmount, 'つもり貯金額'),
+      () => draft.useTimer && draft.timerMinutes < 1 ? 'タイマーの時間は1分以上で入力してください' : null,
+    )
+    if (error) { setTaskError(error); return }
     onSaveTask({ ...draft, name: draft.name.trim() })
+    setTaskError('')
     setDraft(null)
   }
 
@@ -243,6 +262,64 @@ export default function SavingsPage({
               <div className="calc-row"><span>{monthLabel(thisMonth())}に貯めた額</span><span>¥{monthSavings.toLocaleString()}</span></div>
             </div>
 
+            <div className="section-header"><h3>目標 ({goalRows.filter(g => g.id).length})</h3></div>
+            {goalRows.length === 0 ? (
+              <p className="empty-hint">
+                貯金の行き先を作れます<br />+ボタンで追加できます
+              </p>
+            ) : (
+              <ul className="item-list">
+                {goalRows.map(g => {
+                  const ratio = g.targetAmount > 0 ? Math.min(1, g.kept / g.targetAmount) : 0
+                  const unassigned = g.id === ''
+                  return (
+                    <li key={g.id || '__none'}>
+                      <button
+                        className="row-card"
+                        style={unassigned ? { cursor: 'default' } : undefined}
+                        onClick={() => {
+                          if (unassigned) return
+                          setGoalError('')
+                          setGoalDraft({ id: g.id, name: g.name, icon: g.icon, color: g.color, targetAmount: g.targetAmount })
+                        }}
+                      >
+                        <span className="genre-dot" style={{ background: `${g.color}33`, width: 40, height: 40, fontSize: 20 }}>
+                          {g.icon}
+                        </span>
+                        <span className="row-main">
+                          <span className="row-title">{g.name}</span>
+                          <span className="row-sub">
+                            {g.targetAmount > 0
+                              ? `${g.kept.toLocaleString()} / ${g.targetAmount.toLocaleString()}円`
+                              : `${g.kept.toLocaleString()}円（上限なし）`}
+                          </span>
+                          <span className="bar">
+                            <span className="bar-fill" style={{ width: `${ratio * 100}%`, background: g.color }} />
+                          </span>
+                        </span>
+                        {g.targetAmount > 0 && (
+                          <span className="row-amount" style={{ color: g.color }}>{Math.round(ratio * 100)}%</span>
+                        )}
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+
+            <div className="fab-row">
+              <button
+                className="fab"
+                style={{ background: theme.accent, boxShadow: `0 4px 14px ${theme.accent}66` }}
+                onClick={() => {
+                  setGoalError('')
+                  setGoalDraft({ id: null, name: '', icon: '🐷', color: '#f472b6', targetAmount: 0 })
+                }}
+              >
+                +
+              </button>
+            </div>
+
             <div className="section-header"><h3>最近の記録</h3></div>
             {savingsEvents.length === 0 ? (
               <p className="empty-hint">タスクを達成すると貯まります</p>
@@ -269,7 +346,7 @@ export default function SavingsPage({
             )}
 
             <p className="summary" style={{ textAlign: 'center', padding: '1rem 0' }}>
-              目標ごとの貯金先（緊急用・一人暮らし初期費用など）は次回の実装分です
+              切り崩しは「予定 &gt; 計算」タブから行えます
             </p>
           </>
         )}
@@ -282,8 +359,9 @@ export default function SavingsPage({
           name={draft.name}
           onNameChange={v => setDraft({ ...draft, name: v })}
           namePlaceholder="例: 部屋の掃除"
-          onClose={() => setDraft(null)}
+          onClose={() => { setDraft(null); setTaskError('') }}
           onSave={saveTask}
+          error={taskError}
           onDelete={draft.id ? () => setDeleteTarget({ id: draft.id!, name: draft.name }) : undefined}
         >
           <DetailRow icon="🔁" label="繰り返し">
@@ -336,7 +414,91 @@ export default function SavingsPage({
           <DetailRow icon="💙" label="ジャンル">
             <GenreSelect genres={genres} value={draft.genreId} onChange={v => setDraft({ ...draft, genreId: v })} />
           </DetailRow>
+
+          <DetailRow icon="🎯" label="貯金先">
+            <select value={draft.goalId} onChange={e => setDraft({ ...draft, goalId: e.target.value })}>
+              <option value="">指定なし</option>
+              {goalRows.filter(g => g.id).map(g => (
+                <option key={g.id} value={g.id}>{g.icon} {g.name}</option>
+              ))}
+            </select>
+          </DetailRow>
         </DetailModal>
+      )}
+
+      {goalDraft && (
+        <DetailModal
+          icon={goalDraft.icon || '🐷'}
+          color={`${goalDraft.color}55`}
+          name={goalDraft.name}
+          onNameChange={v => setGoalDraft({ ...goalDraft, name: v })}
+          namePlaceholder="例: 一人暮らし初期費用"
+          onClose={() => { setGoalDraft(null); setGoalError('') }}
+          error={goalError}
+          onSave={() => {
+            const error = firstError(
+              required(goalDraft.name, '目標の名前'),
+              notNegative(goalDraft.targetAmount, '目標額'),
+            )
+            if (error) { setGoalError(error); return }
+            onSaveGoal({ ...goalDraft, name: goalDraft.name.trim() })
+            setGoalDraft(null)
+            setGoalError('')
+          }}
+          onDelete={goalDraft.id
+            ? () => {
+              const row = goalRows.find(g => g.id === goalDraft.id)
+              if (row) setDeleteGoal(row)
+            }
+            : undefined}
+        >
+          <DetailRow icon="🎯" label="目標額">
+            <input
+              type="number"
+              value={goalDraft.targetAmount || ''}
+              onChange={e => setGoalDraft({ ...goalDraft, targetAmount: Number(e.target.value) })}
+              placeholder="未入力なら上限なし"
+              min={0}
+            />
+          </DetailRow>
+
+          {goalDraft.id && (() => {
+            const row = goalRows.find(g => g.id === goalDraft.id)
+            if (!row) return null
+            return (
+              <>
+                <DetailRow icon="🐷" label="貯まっている額">
+                  <span className="detail-value">{yen(row.kept)}</span>
+                </DetailRow>
+                {row.withdrawn > 0 && (
+                  <DetailRow icon="✂️" label="切り崩し済み">
+                    <span className="detail-value">{yen(row.withdrawn)}</span>
+                  </DetailRow>
+                )}
+              </>
+            )
+          })()}
+
+          <DetailBlock icon="😊" label="アイコン">
+            <IconSwatches
+              value={goalDraft.icon}
+              onChange={icon => setGoalDraft({ ...goalDraft, icon })}
+              accent={theme.accent}
+            />
+          </DetailBlock>
+
+          <DetailBlock icon="🎨" label="色">
+            <ColorSwatches value={goalDraft.color} onChange={color => setGoalDraft({ ...goalDraft, color })} />
+          </DetailBlock>
+        </DetailModal>
+      )}
+
+      {deleteGoal && (
+        <ConfirmModal
+          message={`貯金目標「${deleteGoal.name}」を削除します。貯めた ${yen(deleteGoal.kept)} は行き先なしとして残ります。よろしいですか？`}
+          onCancel={() => setDeleteGoal(null)}
+          onConfirm={() => { onRemoveGoal(deleteGoal.id); setDeleteGoal(null); setGoalDraft(null) }}
+        />
       )}
 
       {deleteTarget && (

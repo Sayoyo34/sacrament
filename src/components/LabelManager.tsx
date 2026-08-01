@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import ConfirmModal from './ConfirmModal'
 import { DetailRow } from './DetailModal'
+import { ColorSwatches, IconSwatches } from './Swatches'
+import { ICONS, PALETTE } from '../palette'
+import { firstError, notDuplicated, required } from '../validation'
 
 export interface LabelItem {
   id: string
@@ -15,16 +18,6 @@ export interface LabelDraft {
   color: string
   icon: string
 }
-
-const PALETTE = [
-  '#f472b6', '#fb923c', '#fbbf24', '#34d399', '#2dd4bf',
-  '#60a5fa', '#a78bfa', '#f87171', '#94a3b8', '#c084fc',
-]
-
-const ICONS = [
-  '💎', '🎁', '🎫', '🚄', '🍰', '🏠', '📦', '🎮',
-  '📚', '💊', '👕', '☕', '🎤', '🎬', '✈️', '🐾',
-]
 
 interface Props {
   title: string
@@ -45,15 +38,25 @@ export default function LabelManager({
 }: Props) {
   const [draft, setDraft] = useState<LabelDraft | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<LabelItem | null>(null)
+  const [error, setError] = useState('')
 
   function openNew() {
+    setError('')
     setDraft({ id: null, name: '', color: PALETTE[0], icon: withIcon ? ICONS[0] : '' })
   }
 
   function save() {
-    if (!draft || !draft.name.trim()) return
-    onSave({ ...draft, name: draft.name.trim().replace(/^#/, '') })
+    if (!draft) return
+    const name = draft.name.trim().replace(/^#/, '')
+    const others = items.filter(i => i.id !== draft.id).map(i => i.name)
+    const err = firstError(
+      required(name, '名前'),
+      notDuplicated(name, others, title.replace('管理', '')),
+    )
+    if (err) { setError(err); return }
+    onSave({ ...draft, name })
     setDraft(null)
+    setError('')
   }
 
   return (
@@ -80,7 +83,10 @@ export default function LabelManager({
                 <li key={it.id}>
                   <button
                     className="row-card"
-                    onClick={() => setDraft({ id: it.id, name: it.name, color: it.color, icon: it.icon ?? '' })}
+                    onClick={() => {
+                      setError('')
+                      setDraft({ id: it.id, name: it.name, color: it.color, icon: it.icon ?? '' })
+                    }}
                   >
                     <span
                       className="genre-dot"
@@ -102,6 +108,8 @@ export default function LabelManager({
             <div className="card" style={{ marginTop: '0.5rem' }}>
               <div className="modal-title">{draft.id ? '編集' : '新規作成'}</div>
 
+              {error && <p className="form-error" role="alert">{error}</p>}
+
               <DetailRow icon="✏️" label="名前">
                 <input
                   value={draft.name}
@@ -118,23 +126,10 @@ export default function LabelManager({
                     <span className="detail-row-label">アイコン</span>
                   </div>
                   <div className="detail-block-body">
-                    <div className="swatch-grid">
-                      {ICONS.map(ic => (
-                        <button
-                          key={ic}
-                          className={`icon-swatch${draft.icon === ic ? ' on' : ''}`}
-                          style={draft.icon === ic ? { borderColor: accent } : undefined}
-                          onClick={() => setDraft({ ...draft, icon: ic })}
-                        >
-                          {ic}
-                        </button>
-                      ))}
-                    </div>
-                    <input
+                    <IconSwatches
                       value={draft.icon}
-                      onChange={e => setDraft({ ...draft, icon: e.target.value })}
-                      placeholder="好きな絵文字を直接入力"
-                      style={{ marginTop: '0.5rem' }}
+                      onChange={icon => setDraft({ ...draft, icon })}
+                      accent={accent}
                     />
                   </div>
                 </div>
@@ -146,23 +141,7 @@ export default function LabelManager({
                   <span className="detail-row-label">色</span>
                 </div>
                 <div className="detail-block-body">
-                  <div className="swatch-grid">
-                    {PALETTE.map(c => (
-                      <button
-                        key={c}
-                        className={`color-swatch${draft.color.toLowerCase() === c ? ' on' : ''}`}
-                        style={{ background: c }}
-                        onClick={() => setDraft({ ...draft, color: c })}
-                        aria-label={c}
-                      />
-                    ))}
-                  </div>
-                  <input
-                    type="color"
-                    value={draft.color}
-                    onChange={e => setDraft({ ...draft, color: e.target.value })}
-                    style={{ marginTop: '0.5rem', height: '40px', padding: '0.2rem' }}
-                  />
+                  <ColorSwatches value={draft.color} onChange={color => setDraft({ ...draft, color })} />
                 </div>
               </div>
 

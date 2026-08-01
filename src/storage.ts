@@ -2,7 +2,7 @@ import type { Genre, LedgerEntry, PlanItem, SavingsEvent, Tag, Task } from './ty
 import { generateId, todayStr } from './utils'
 
 const SCHEMA_KEY = 'schemaVersion'
-const SCHEMA_VERSION = 2
+const SCHEMA_VERSION = 3
 
 export function load<T>(key: string, fallback: T): T {
   try {
@@ -27,7 +27,7 @@ export const DEFAULT_GENRES: Genre[] = [
 
 /** 新スキーマで使うキー。リセット時もこれを消す */
 export const STORAGE_KEYS = [
-  'wallets', 'entries', 'planItems', 'tasks', 'savingsEvents', 'genres', 'tags', SCHEMA_KEY,
+  'wallets', 'entries', 'planItems', 'tasks', 'savingsEvents', 'goals', 'genres', 'tags', SCHEMA_KEY,
 ]
 
 /** v1（シミュレーター/家計簿/タスク/タイマーの4画面時代）の旧キー */
@@ -51,8 +51,25 @@ interface LegacyEntry { id: string; walletId: string; label: string; amount: num
  * 旧キーは削除せず残す（不具合時に手動で戻せるようにするため）
  */
 export function migrate() {
-  if (load<number>(SCHEMA_KEY, 1) >= SCHEMA_VERSION) return
+  const from = load<number>(SCHEMA_KEY, 1)
+  if (from >= SCHEMA_VERSION) return
+  if (from < 2) migrateV1toV2()
+  if (from < 3) migrateV2toV3()
+  save(SCHEMA_KEY, SCHEMA_VERSION)
+}
 
+/** v2 → v3: つもり貯金に「貯金目標」という行き先の概念を足す */
+function migrateV2toV3() {
+  const events = load<SavingsEvent[]>('savingsEvents', [])
+  save('savingsEvents', events.map(e => ({ ...e, goalId: e.goalId ?? '' })))
+
+  const tasks = load<Task[]>('tasks', [])
+  save('tasks', tasks.map(t => ({ ...t, goalId: t.goalId ?? '' })))
+
+  save('goals', load('goals', []))
+}
+
+function migrateV1toV2() {
   const today = todayStr()
 
   // ── 出費履歴にジャンル/タグ/メモの欄を足す
@@ -110,6 +127,7 @@ export function migrate() {
     timerMinutes: 0,
     completedDates: t.completed ? [today] : [],
     genreId: '',
+    goalId: '',
     order: i,
   }))
 
@@ -125,6 +143,7 @@ export function migrate() {
       timerMinutes: p.minutes,
       completedDates: [],
       genreId: '',
+      goalId: '',
       order: legacyTasks.length + i,
     })
   })
@@ -134,7 +153,7 @@ export function migrate() {
   const totalMinutes = load<number>('totalMinutes', 0)
   const carried = taskBonus + Math.floor(totalMinutes / 10) * bonusRate
   const savingsEvents: SavingsEvent[] = carried > 0
-    ? [{ id: generateId(), date: today, amount: carried, taskId: '', label: '移行分（旧ボーナス累計）' }]
+    ? [{ id: generateId(), date: today, amount: carried, taskId: '', goalId: '', label: '移行分（旧ボーナス累計）' }]
     : []
 
   save('entries', entries)
@@ -143,7 +162,6 @@ export function migrate() {
   save('savingsEvents', savingsEvents)
   save('genres', DEFAULT_GENRES)
   save('tags', [] as Tag[])
-  save(SCHEMA_KEY, SCHEMA_VERSION)
 }
 
 export function resetAll() {

@@ -1,39 +1,74 @@
 import { useState } from 'react'
-import type { Genre, LedgerEntry, SavingsEvent, Task } from '../types'
+import type { Genre, LedgerEntry, SavingsEvent, Tag, Task } from '../types'
 import TopTabs from '../components/TopTabs'
 import { Bars, Donut, type Slice } from '../components/Charts'
+import { TagFilter } from '../components/Pickers'
 import { themeOf } from '../theme'
-import { daysCounted, monthLabel, monthOf, recentMonths, thisMonth } from '../utils'
+import { daysCounted, matchesTags, monthLabel, monthOf, recentMonths, thisMonth, yearOf } from '../utils'
 
 type Tab = 'expense' | 'savings'
+type Span = 'month' | 'year' | 'all'
 
 const UNSET_COLOR = '#cbd5e1'
 
 interface Props {
   entries: LedgerEntry[]
   genres: Genre[]
+  tags: Tag[]
   tasks: Task[]
   savingsEvents: SavingsEvent[]
 }
 
-export default function AnalysisPage({ entries, genres, tasks, savingsEvents }: Props) {
+export default function AnalysisPage({ entries, genres, tags, tasks, savingsEvents }: Props) {
   const theme = themeOf('analysis')
   const [tab, setTab] = useState<Tab>('expense')
   const [month, setMonth] = useState(thisMonth())
+  const [span, setSpan] = useState<Span>('month')
+  const [year, setYear] = useState(yearOf(thisMonth()))
+  const [filterTags, setFilterTags] = useState<string[]>([])
 
   // 記録のある月＋今月を選択肢にする
   const monthOptions = Array.from(
     new Set([...entries.map(e => monthOf(e.date)), ...savingsEvents.map(e => monthOf(e.date)), thisMonth()])
   ).filter(Boolean).sort().reverse()
 
+  const yearOptions = Array.from(new Set(monthOptions.map(yearOf))).sort().reverse()
+
+  /** 選んだ集計期間に入るか */
+  function inSpan(date: string) {
+    if (span === 'all') return true
+    if (span === 'year') return yearOf(date) === year
+    return monthOf(date) === month
+  }
+
+  const spanLabel = span === 'all' ? '全期間' : span === 'year' ? `${year}年` : monthLabel(month)
+
+  const filterNames = filterTags
+    .map(id => tags.find(t => t.id === id)?.name)
+    .filter(Boolean)
+    .map(n => `#${n}`)
+    .join(' ')
+
   // ── 支出分析：ジャンル別の内訳 ──
-  const monthExpenses = entries.filter(e => monthOf(e.date) === month && e.amount < 0)
-  const expenseTotal = monthExpenses.reduce((s, e) => s + Math.abs(e.amount), 0)
+  const scopedExpenses = entries.filter(e => inSpan(e.date) && e.amount < 0 && matchesTags(e.tagIds, filterTags))
+  const expenseTotal = scopedExpenses.reduce((s, e) => s + Math.abs(e.amount), 0)
 
   const byGenre = new Map<string, number>()
-  monthExpenses.forEach(e => {
+  scopedExpenses.forEach(e => {
     byGenre.set(e.genreId, (byGenre.get(e.genreId) ?? 0) + Math.abs(e.amount))
   })
+
+  // タグ別の合計。1件が複数タグを持つため合計は支出総額と一致しない
+  const spanExpenses = entries.filter(e => inSpan(e.date) && e.amount < 0)
+  const byTag = tags
+    .map(t => ({
+      tag: t,
+      value: spanExpenses
+        .filter(e => e.tagIds.includes(t.id))
+        .reduce((s, e) => s + Math.abs(e.amount), 0),
+    }))
+    .filter(x => x.value > 0)
+    .sort((a, b) => b.value - a.value)
 
   const slices: Slice[] = [...byGenre.entries()]
     .map(([genreId, value]) => {
@@ -83,11 +118,23 @@ export default function AnalysisPage({ entries, genres, tasks, savingsEvents }: 
     })
     .sort((a, b) => b.rate - a.rate)
 
-  const monthPicker = (
-    <div className="month-picker">
-      <select value={month} onChange={e => setMonth(e.target.value)}>
-        {monthOptions.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
-      </select>
+  const spanPicker = (
+    <div className="span-picker">
+      <div className="type-toggle">
+        <button className={span !== 'month' ? 'btn-sub' : ''} style={span === 'month' ? { background: theme.accent } : undefined} onClick={() => setSpan('month')}>月</button>
+        <button className={span !== 'year' ? 'btn-sub' : ''} style={span === 'year' ? { background: theme.accent } : undefined} onClick={() => setSpan('year')}>年</button>
+        <button className={span !== 'all' ? 'btn-sub' : ''} style={span === 'all' ? { background: theme.accent } : undefined} onClick={() => setSpan('all')}>全期間</button>
+      </div>
+      {span === 'month' && (
+        <select value={month} onChange={e => setMonth(e.target.value)}>
+          {monthOptions.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
+        </select>
+      )}
+      {span === 'year' && (
+        <select value={year} onChange={e => setYear(e.target.value)}>
+          {yearOptions.map(y => <option key={y} value={y}>{y}年</option>)}
+        </select>
+      )}
     </div>
   )
 
@@ -102,16 +149,21 @@ export default function AnalysisPage({ entries, genres, tasks, savingsEvents }: 
       />
 
       <div className="page-scroll">
-        {monthPicker}
-
         {tab === 'expense' ? (
           <>
+            {spanPicker}
+            <TagFilter tags={tags} selected={filterTags} onChange={setFilterTags} />
+
             {expenseTotal === 0 ? (
-              <p className="empty-hint">この月の支出がありません<br />家計簿に記録すると集計されます</p>
+              <p className="empty-hint">
+                {filterTags.length > 0
+                  ? <>絞り込みに一致する支出がありません<br />タグを外すと全件集計されます</>
+                  : <>{spanLabel}の支出がありません<br />家計簿に記録すると集計されます</>}
+              </p>
             ) : (
               <>
                 <div className="chart-wrap">
-                  <Donut slices={slices} total={expenseTotal} caption="支出合計" />
+                  <Donut slices={slices} total={expenseTotal} caption={filterNames || spanLabel} />
                 </div>
 
                 <div className="section-header"><h3>ジャンル別の内訳</h3></div>
@@ -140,6 +192,31 @@ export default function AnalysisPage({ entries, genres, tasks, savingsEvents }: 
                   })}
                 </ul>
 
+                {byTag.length > 0 && filterTags.length === 0 && (
+                  <>
+                    <div className="section-header"><h3>タグ別の合計</h3></div>
+                    <ul className="item-list">
+                      {byTag.map(({ tag, value }) => (
+                        <li key={tag.id}>
+                          <button className="row-card" onClick={() => setFilterTags([tag.id])}>
+                            <span className="genre-dot" style={{ background: `${tag.color}33`, width: 34, height: 34, fontSize: 15, color: tag.color, fontWeight: 700 }}>#</span>
+                            <span className="row-main">
+                              <span className="row-title" style={{ color: tag.color }}>#{tag.name}</span>
+                              <span className="bar">
+                                <span className="bar-fill" style={{ width: `${(value / byTag[0].value) * 100}%`, background: tag.color }} />
+                              </span>
+                            </span>
+                            <span className="row-amount">¥{value.toLocaleString()}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="summary" style={{ textAlign: 'center', padding: '0 0 0.5rem' }}>
+                      1件に複数タグが付くため、合計は支出総額と一致しません
+                    </p>
+                  </>
+                )}
+
                 <p className="summary" style={{ textAlign: 'center', padding: '0.5rem 0 1rem' }}>
                   収入は集計に含めていません
                 </p>
@@ -148,6 +225,12 @@ export default function AnalysisPage({ entries, genres, tasks, savingsEvents }: 
           </>
         ) : (
           <>
+            <div className="month-picker">
+              <select value={month} onChange={e => setMonth(e.target.value)}>
+                {monthOptions.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
+              </select>
+            </div>
+
             <div className="card">
               <Bars data={savingsByMonth} color={theme.accent} highlight={month} />
             </div>

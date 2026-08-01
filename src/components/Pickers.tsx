@@ -43,6 +43,46 @@ export function TagPicker({ tags, value, onChange }: {
   )
 }
 
+/**
+ * 一覧を絞り込むためのタグ選択。
+ * 複数選ぶと AND 条件（#アイナナ かつ #遠征）で絞り込む。
+ */
+export function TagFilter({ tags, selected, onChange }: {
+  tags: Tag[]
+  selected: string[]
+  onChange: (ids: string[]) => void
+}) {
+  if (tags.length === 0) return null
+
+  return (
+    <div className="tag-filter">
+      <div className="tag-picker">
+        {tags.map(t => {
+          const on = selected.includes(t.id)
+          return (
+            <button
+              key={t.id}
+              className={`tag-chip${on ? ' on' : ''}`}
+              style={on ? { background: t.color, borderColor: t.color } : { color: t.color, borderColor: t.color }}
+              onClick={() => onChange(on ? selected.filter(id => id !== t.id) : [...selected, t.id])}
+            >
+              #{t.name}
+            </button>
+          )
+        })}
+        {selected.length > 0 && (
+          <button className="tag-chip tag-clear" onClick={() => onChange([])}>クリア</button>
+        )}
+      </div>
+      {selected.length > 1 && (
+        <p className="summary" style={{ marginTop: '0.4rem', fontSize: '0.72rem' }}>
+          選んだタグをすべて含むものだけ表示しています
+        </p>
+      )}
+    </div>
+  )
+}
+
 /** 一覧に並べる読み取り専用のタグ表示 */
 export function TagList({ tags, ids }: { tags: Tag[]; ids: string[] }) {
   if (ids.length === 0) return null

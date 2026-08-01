@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { Genre, LedgerEntry, PlanItem, SavingsEvent, Tag, Task, Wallet } from './types'
+import type { Genre, Goal, GoalDraft, GoalRow, LedgerEntry, PlanItem, SavingsEvent, Tag, Task, Wallet } from './types'
 import LedgerPage, { type EntryDraft, type WalletDraft } from './pages/LedgerPage'
 import PlansPage, { type PlanDraft } from './pages/PlansPage'
 import SavingsPage, { type TaskDraft } from './pages/SavingsPage'
@@ -20,6 +20,7 @@ export default function App() {
   const [planItems, setPlanItems] = useState<PlanItem[]>(() => load('planItems', []))
   const [tasks, setTasks] = useState<Task[]>(() => load('tasks', []))
   const [savingsEvents, setSavingsEvents] = useState<SavingsEvent[]>(() => load('savingsEvents', []))
+  const [goals, setGoals] = useState<Goal[]>(() => load('goals', []))
   const [genres, setGenres] = useState<Genre[]>(() => load('genres', DEFAULT_GENRES))
   const [tags, setTags] = useState<Tag[]>(() => load('tags', []))
 
@@ -28,6 +29,7 @@ export default function App() {
   useEffect(() => { save('planItems', planItems) }, [planItems])
   useEffect(() => { save('tasks', tasks) }, [tasks])
   useEffect(() => { save('savingsEvents', savingsEvents) }, [savingsEvents])
+  useEffect(() => { save('goals', goals) }, [goals])
   useEffect(() => { save('genres', genres) }, [genres])
   useEffect(() => { save('tags', tags) }, [tags])
 
@@ -119,12 +121,12 @@ export default function App() {
       const order = tasks.reduce((m, t) => Math.max(m, t.order), -1) + 1
       setTasks(prev => [...prev, {
         id: generateId(), name: d.name, bonusAmount: d.bonusAmount, repeat: d.repeat,
-        timerMinutes: minutes, completedDates: [], genreId: d.genreId, order,
+        timerMinutes: minutes, completedDates: [], genreId: d.genreId, goalId: d.goalId, order,
       }])
       return
     }
     setTasks(prev => prev.map(t => t.id === d.id
-      ? { ...t, name: d.name, bonusAmount: d.bonusAmount, repeat: d.repeat, timerMinutes: minutes, genreId: d.genreId }
+      ? { ...t, name: d.name, bonusAmount: d.bonusAmount, repeat: d.repeat, timerMinutes: minutes, genreId: d.genreId, goalId: d.goalId }
       : t))
   }
 
@@ -143,7 +145,7 @@ export default function App() {
     setTasks(prev => prev.map(x => x.id === id ? { ...x, completedDates: [...x.completedDates, today] } : x))
     if (t.bonusAmount > 0) {
       setSavingsEvents(prev => [...prev, {
-        id: generateId(), date: today, amount: t.bonusAmount, taskId: t.id, label: t.name,
+        id: generateId(), date: today, amount: t.bonusAmount, taskId: t.id, goalId: t.goalId, label: t.name,
       }])
     }
   }
@@ -166,25 +168,49 @@ export default function App() {
     })
   }
 
+  // ── 貯金目標 ───────────────────────────
+  function saveGoal(d: GoalDraft) {
+    if (d.id === null) {
+      const order = goals.reduce((m, g) => Math.max(m, g.order), -1) + 1
+      setGoals(prev => [...prev, {
+        id: generateId(), name: d.name, icon: d.icon || '🐷', color: d.color,
+        targetAmount: d.targetAmount, order,
+      }])
+      return
+    }
+    setGoals(prev => prev.map(g => g.id === d.id
+      ? { ...g, name: d.name, icon: d.icon || '🐷', color: d.color, targetAmount: d.targetAmount }
+      : g))
+  }
+
+  /** 目標を消しても貯めた記録は消さず、行き先なしに戻すだけにする */
+  function removeGoal(id: string) {
+    setGoals(prev => prev.filter(g => g.id !== id))
+    setSavingsEvents(prev => prev.map(e => e.goalId === id ? { ...e, goalId: '' } : e))
+    setTasks(prev => prev.map(t => t.goalId === id ? { ...t, goalId: '' } : t))
+  }
+
   // ── つもり貯金の切り崩し ────────────────
   /** 切り崩しはマイナス額のイベントとして積む（履歴として残す） */
-  function withdrawSavings(amount: number) {
-    const capped = Math.min(amount, savingsKept)
+  function withdrawSavings(goalId: string, amount: number) {
+    const stat = savingsByGoal.get(goalId) ?? { earned: 0, withdrawn: 0 }
+    const capped = Math.min(amount, stat.earned - stat.withdrawn)
     if (capped <= 0) return
     setSavingsEvents(prev => [...prev, {
-      id: generateId(), date: todayStr(), amount: -capped, taskId: '', label: '切り崩し',
+      id: generateId(), date: todayStr(), amount: -capped, taskId: '', goalId, label: '切り崩し',
     }])
   }
 
   /** 新しい切り崩しから順に取り消す。使い切ったイベントは消す */
-  function undoWithdrawSavings(amount: number) {
-    let left = Math.min(amount, savingsWithdrawn)
+  function undoWithdrawSavings(goalId: string, amount: number) {
+    const stat = savingsByGoal.get(goalId) ?? { earned: 0, withdrawn: 0 }
+    let left = Math.min(amount, stat.withdrawn)
     if (left <= 0) return
     setSavingsEvents(prev => {
       const next = [...prev]
       for (let i = next.length - 1; i >= 0 && left > 0; i--) {
         const ev = next[i]
-        if (ev.amount >= 0) continue
+        if (ev.amount >= 0 || ev.goalId !== goalId) continue
         const take = Math.min(left, -ev.amount)
         left -= take
         const rest = ev.amount + take
@@ -235,6 +261,7 @@ export default function App() {
     setPlanItems([])
     setTasks([])
     setSavingsEvents([])
+    setGoals([])
     setGenres(DEFAULT_GENRES)
     setTags([])
     setPage('ledger')
@@ -244,7 +271,29 @@ export default function App() {
   // 貯めた額（プラス）と切り崩した額（マイナス）を分けて持ち、差し引きが取っておく額になる
   const savingsEarned = savingsEvents.reduce((s, e) => s + Math.max(0, e.amount), 0)
   const savingsWithdrawn = savingsEvents.reduce((s, e) => s + Math.max(0, -e.amount), 0)
-  const savingsKept = savingsEarned - savingsWithdrawn
+
+  const savingsByGoal = new Map<string, { earned: number; withdrawn: number }>()
+  savingsEvents.forEach(e => {
+    const cur = savingsByGoal.get(e.goalId) ?? { earned: 0, withdrawn: 0 }
+    if (e.amount > 0) cur.earned += e.amount
+    else cur.withdrawn += -e.amount
+    savingsByGoal.set(e.goalId, cur)
+  })
+
+  function rowOf(id: string, name: string, icon: string, color: string, targetAmount: number): GoalRow {
+    const s = savingsByGoal.get(id) ?? { earned: 0, withdrawn: 0 }
+    return { id, name, icon, color, targetAmount, earned: s.earned, withdrawn: s.withdrawn, kept: s.earned - s.withdrawn }
+  }
+
+  const unassigned = savingsByGoal.get('')
+  const goalRows: GoalRow[] = [
+    ...goals.slice().sort((a, b) => a.order - b.order)
+      .map(g => rowOf(g.id, g.name, g.icon, g.color, g.targetAmount)),
+    // 行き先を決めていない貯金は、実際にある時だけ末尾に出す
+    ...(unassigned && (unassigned.earned > 0 || unassigned.withdrawn > 0)
+      ? [rowOf('', '行き先なし', '🐷', '#94a3b8', 0)]
+      : []),
+  ]
 
   return (
     <div className="app-shell">
@@ -267,12 +316,15 @@ export default function App() {
             tasks={tasks}
             savingsEvents={savingsEvents}
             genres={genres}
+            goalRows={goalRows}
             savingsEarned={savingsEarned}
             savingsWithdrawn={savingsWithdrawn}
             onSaveTask={saveTask}
             onRemoveTask={removeTask}
             onCompleteTask={completeTask}
             onUncompleteTask={uncompleteTask}
+            onSaveGoal={saveGoal}
+            onRemoveGoal={removeGoal}
           />
         )}
         {page === 'plans' && (
@@ -282,8 +334,7 @@ export default function App() {
             genres={genres}
             tags={tags}
             totalBalance={totalBalance}
-            savingsEarned={savingsEarned}
-            savingsWithdrawn={savingsWithdrawn}
+            goalRows={goalRows}
             onSavePlan={savePlan}
             onRemovePlan={removePlan}
             onDeduct={deductPlan}
@@ -296,6 +347,7 @@ export default function App() {
           <AnalysisPage
             entries={entries}
             genres={genres}
+            tags={tags}
             tasks={tasks}
             savingsEvents={savingsEvents}
           />

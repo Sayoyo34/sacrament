@@ -11,6 +11,8 @@ interface Props {
   /** 省略すると保存ボタンを出さない */
   onSave?: () => void
   onDelete?: () => void
+  /** 入力に不備がある時の説明。保存を押しても何も起きない状態を避ける */
+  error?: string
   children: ReactNode
 }
 
@@ -19,7 +21,7 @@ interface Props {
  * 家計簿 / 予定 / 貯金 で共通に使い、中身のフィールドだけ各ページが差し込む。
  */
 export default function DetailModal({
-  icon, color, name, onNameChange, namePlaceholder, onClose, onSave, onDelete, children,
+  icon, color, name, onNameChange, namePlaceholder, onClose, onSave, onDelete, error, children,
 }: Props) {
   return (
     <div className="modal-overlay detail-overlay" onClick={onClose}>
@@ -49,7 +51,10 @@ export default function DetailModal({
           </div>
         </div>
 
-        <div className="detail-body">{children}</div>
+        <div className="detail-body">
+          {error && <p className="form-error" role="alert">{error}</p>}
+          {children}
+        </div>
       </div>
     </div>
   )
