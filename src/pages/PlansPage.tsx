@@ -3,6 +3,7 @@ import type { Genre, GoalRow, PlanItem, PlanKind, Tag, Wallet } from '../types'
 import DetailModal, { DetailBlock, DetailRow } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
 import { GenreDot, GenreSelect, TagList, TagPicker } from '../components/Pickers'
+import ReorderButtons, { ReorderToggle } from '../components/Reorder'
 import TopTabs from '../components/TopTabs'
 import { themeOf } from '../theme'
 import { yen } from '../utils'
@@ -31,6 +32,7 @@ interface Props {
   goalRows: GoalRow[]
   onSavePlan: (draft: PlanDraft) => void
   onRemovePlan: (id: string) => void
+  onMovePlan: (id: string, delta: number) => void
   onDeduct: (id: string, amount: number) => void
   onUndoDeduct: (id: string, amount: number) => void
   onWithdrawSavings: (goalId: string, amount: number) => void
@@ -132,7 +134,7 @@ function DeductControls({ remaining, done, accent, onDeduct, onUndo, confirmLabe
 
 export default function PlansPage({
   planItems, wallets, genres, tags, totalBalance, goalRows,
-  onSavePlan, onRemovePlan, onDeduct, onUndoDeduct, onWithdrawSavings, onUndoWithdrawSavings,
+  onSavePlan, onRemovePlan, onMovePlan, onDeduct, onUndoDeduct, onWithdrawSavings, onUndoWithdrawSavings,
 }: Props) {
   const theme = themeOf('plans')
   const [tab, setTab] = useState<Tab>('list')
@@ -142,6 +144,7 @@ export default function PlansPage({
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const [breakdown, setBreakdown] = useState(false)
   const [editError, setEditError] = useState('')
+  const [reordering, setReordering] = useState<PlanKind | null>(null)
 
   const sorted = planItems.slice().sort((a, b) => a.order - b.order)
   const once = sorted.filter(p => p.kind === 'once')
@@ -191,30 +194,29 @@ export default function PlansPage({
     setEditError('')
   }
 
-  function renderRow(p: PlanItem) {
+  function renderRow(p: PlanItem, index: number, group: PlanItem[]) {
     const showProgress = tab === 'calc' && p.kind === 'once'
     const done = p.kind === 'once' && p.estimatedCost > 0 && p.deductedAmount >= p.estimatedCost
     const genre = genres.find(g => g.id === p.genreId)
-    return (
-      <li key={p.id}>
-        <button
-          className={`row-card${done ? ' done' : ''}`}
-          onClick={() => tab === 'list' ? openEdit(p) : setDeducting(p.id)}
-        >
-          <GenreDot genres={genres} genreId={p.genreId} fallback="🗒" />
-          <span className="row-main">
-            <span className={`row-title${done ? ' struck' : ''}`}>
-              {p.kind === 'monthly' && p.dayOfMonth > 0 ? `毎月${p.dayOfMonth}日 ` : ''}{p.name}
-            </span>
-            {showProgress ? (
-              <Progress
-                ratio={p.estimatedCost > 0 ? p.deductedAmount / p.estimatedCost : 0}
-                color={genre?.color ?? theme.accent}
-              />
-            ) : (
-              <span className="row-sub"><TagList tags={tags} ids={p.tagIds} /></span>
-            )}
+    const inReorder = tab === 'list' && reordering === p.kind
+
+    const body = (
+      <>
+        <GenreDot genres={genres} genreId={p.genreId} fallback="🗒" />
+        <span className="row-main">
+          <span className={`row-title${done ? ' struck' : ''}`}>
+            {p.kind === 'monthly' && p.dayOfMonth > 0 ? `毎月${p.dayOfMonth}日 ` : ''}{p.name}
           </span>
+          {showProgress ? (
+            <Progress
+              ratio={p.estimatedCost > 0 ? p.deductedAmount / p.estimatedCost : 0}
+              color={genre?.color ?? theme.accent}
+            />
+          ) : (
+            <span className="row-sub"><TagList tags={tags} ids={p.tagIds} /></span>
+          )}
+        </span>
+        {!inReorder && (
           <span className="row-right">
             {showProgress ? (
               <>
@@ -229,6 +231,34 @@ export default function PlansPage({
               <span className="row-amount">¥{p.estimatedCost.toLocaleString()}</span>
             )}
           </span>
+        )}
+      </>
+    )
+
+    if (inReorder) {
+      return (
+        <li key={p.id}>
+          <div className={`row-card${done ? ' done' : ''}`} style={{ cursor: 'default' }}>
+            {body}
+            <ReorderButtons
+              accent={theme.accent}
+              canUp={index > 0}
+              canDown={index < group.length - 1}
+              onUp={() => onMovePlan(p.id, -1)}
+              onDown={() => onMovePlan(p.id, 1)}
+            />
+          </div>
+        </li>
+      )
+    }
+
+    return (
+      <li key={p.id}>
+        <button
+          className={`row-card${done ? ' done' : ''}`}
+          onClick={() => tab === 'list' ? openEdit(p) : setDeducting(p.id)}
+        >
+          {body}
         </button>
       </li>
     )
@@ -239,7 +269,7 @@ export default function PlansPage({
       <TopTabs
         tabs={[{ id: 'list' as Tab, label: '出費予定' }, { id: 'calc' as Tab, label: '計算' }]}
         active={tab}
-        onChange={t => { setTab(t); setEditing(null); setDeducting(null) }}
+        onChange={t => { setTab(t); setEditing(null); setDeducting(null); setReordering(null) }}
         accent={theme.accent}
         soft={theme.soft}
       />
@@ -252,18 +282,36 @@ export default function PlansPage({
           </div>
         )}
 
-        <div className="section-header"><h3>未定 ({once.length})</h3></div>
+        <div className="section-header">
+          <h3>未定 ({once.length})</h3>
+          {tab === 'list' && once.length > 1 && (
+            <ReorderToggle
+              active={reordering === 'once'}
+              accent={theme.accent}
+              onToggle={() => setReordering(r => r === 'once' ? null : 'once')}
+            />
+          )}
+        </div>
         {once.length === 0 ? (
           <p className="empty-hint">まだ予定がありません</p>
         ) : (
-          <ul className="item-list">{once.map(renderRow)}</ul>
+          <ul className="item-list">{once.map((p, i) => renderRow(p, i, once))}</ul>
         )}
 
-        <div className="section-header"><h3>毎月 ({monthly.length})</h3></div>
+        <div className="section-header">
+          <h3>毎月 ({monthly.length})</h3>
+          {tab === 'list' && monthly.length > 1 && (
+            <ReorderToggle
+              active={reordering === 'monthly'}
+              accent={theme.accent}
+              onToggle={() => setReordering(r => r === 'monthly' ? null : 'monthly')}
+            />
+          )}
+        </div>
         {monthly.length === 0 ? (
           <p className="empty-hint">定期支出の登録がありません</p>
         ) : (
-          <ul className="item-list">{monthly.map(renderRow)}</ul>
+          <ul className="item-list">{monthly.map((p, i) => renderRow(p, i, monthly))}</ul>
         )}
 
         {tab === 'calc' && (

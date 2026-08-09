@@ -6,10 +6,10 @@ import SavingsPage, { type TaskDraft } from './pages/SavingsPage'
 import AnalysisPage from './pages/AnalysisPage'
 import MorePage from './pages/MorePage'
 import BottomNav from './components/BottomNav'
-import type { LabelDraft } from './components/LabelManager'
+import type { LabelDraft } from './components/LabelListPage'
 import { DEFAULT_GENRES, load, resetAll, save } from './storage'
 import type { Page } from './theme'
-import { generateId, todayStr } from './utils'
+import { generateId, moveWithinGroup, todayStr } from './utils'
 import './App.css'
 
 export default function App() {
@@ -102,6 +102,11 @@ export default function App() {
     setPlanItems(prev => prev.filter(p => p.id !== id))
   }
 
+  /** 未定は未定の中、毎月は毎月の中だけで動かす */
+  function movePlan(id: string, delta: number) {
+    setPlanItems(prev => moveWithinGroup(prev, id, delta, p => p.kind))
+  }
+
   function deductPlan(id: string, amount: number) {
     setPlanItems(prev => prev.map(p => p.id === id
       ? { ...p, deductedAmount: Math.min(p.estimatedCost, p.deductedAmount + amount) }
@@ -133,6 +138,11 @@ export default function App() {
   function removeTask(id: string) {
     setTasks(prev => prev.filter(t => t.id !== id))
     setSavingsEvents(prev => prev.filter(e => e.taskId !== id))
+  }
+
+  /** デイリーミッションとタスクはそれぞれの中だけで動かす */
+  function moveTask(id: string, delta: number) {
+    setTasks(prev => moveWithinGroup(prev, id, delta, t => t.repeat))
   }
 
   function completeTask(id: string) {
@@ -321,6 +331,7 @@ export default function App() {
             savingsWithdrawn={savingsWithdrawn}
             onSaveTask={saveTask}
             onRemoveTask={removeTask}
+            onMoveTask={moveTask}
             onCompleteTask={completeTask}
             onUncompleteTask={uncompleteTask}
             onSaveGoal={saveGoal}
@@ -337,6 +348,7 @@ export default function App() {
             goalRows={goalRows}
             onSavePlan={savePlan}
             onRemovePlan={removePlan}
+            onMovePlan={movePlan}
             onDeduct={deductPlan}
             onUndoDeduct={undoDeductPlan}
             onWithdrawSavings={withdrawSavings}

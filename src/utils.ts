@@ -69,6 +69,35 @@ export function yen(n: number) {
   return `${n.toLocaleString()}円`
 }
 
+/**
+ * 同じグループ内で1つ上／下に動かし、そのグループの order を振り直す。
+ * 未定と毎月、デイリーとタスクのように区分が分かれた一覧で使う。
+ */
+export function moveWithinGroup<T extends { id: string; order: number }>(
+  items: T[],
+  id: string,
+  delta: number,
+  groupOf: (item: T) => string,
+): T[] {
+  const target = items.find(i => i.id === id)
+  if (!target) return items
+
+  const group = items
+    .filter(i => groupOf(i) === groupOf(target))
+    .sort((a, b) => a.order - b.order)
+
+  const from = group.findIndex(i => i.id === id)
+  const to = from + delta
+  if (to < 0 || to >= group.length) return items
+
+  const swapped = [...group]
+  swapped[from] = group[to]
+  swapped[to] = group[from]
+
+  const orderById = new Map(swapped.map((it, i) => [it.id, i]))
+  return items.map(i => orderById.has(i.id) ? { ...i, order: orderById.get(i.id)! } : i)
+}
+
 /** 絞り込み用。選んだタグをすべて持っていれば一致（AND条件） */
 export function matchesTags(itemTagIds: string[], selected: string[]) {
   return selected.every(id => itemTagIds.includes(id))

@@ -3,6 +3,7 @@ import type { ActiveTimer, Genre, GoalDraft, GoalRow, SavingsEvent, Task, TaskRe
 import DetailModal, { DetailBlock, DetailRow } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
 import { GenreDot, GenreSelect } from '../components/Pickers'
+import ReorderButtons, { ReorderToggle } from '../components/Reorder'
 import { ColorSwatches, IconSwatches } from '../components/Swatches'
 import TopTabs from '../components/TopTabs'
 import { themeOf } from '../theme'
@@ -31,6 +32,7 @@ interface Props {
   savingsWithdrawn: number
   onSaveTask: (draft: TaskDraft) => void
   onRemoveTask: (id: string) => void
+  onMoveTask: (id: string, delta: number) => void
   onCompleteTask: (id: string) => void
   onUncompleteTask: (id: string) => void
   onSaveGoal: (draft: GoalDraft) => void
@@ -45,7 +47,7 @@ function fmt(seconds: number) {
 
 export default function SavingsPage({
   tasks, savingsEvents, genres, goalRows, savingsEarned, savingsWithdrawn,
-  onSaveTask, onRemoveTask, onCompleteTask, onUncompleteTask, onSaveGoal, onRemoveGoal,
+  onSaveTask, onRemoveTask, onMoveTask, onCompleteTask, onUncompleteTask, onSaveGoal, onRemoveGoal,
 }: Props) {
   const savingsKept = savingsEarned - savingsWithdrawn
   const theme = themeOf('savings')
@@ -53,6 +55,7 @@ export default function SavingsPage({
   const [deleteGoal, setDeleteGoal] = useState<GoalRow | null>(null)
   const [taskError, setTaskError] = useState('')
   const [goalError, setGoalError] = useState('')
+  const [reordering, setReordering] = useState<TaskRepeat | null>(null)
   const [tab, setTab] = useState<Tab>('tasks')
   const [draft, setDraft] = useState<TaskDraft | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
@@ -135,33 +138,56 @@ export default function SavingsPage({
     setTimer({ taskId: t.id, totalSeconds: t.timerMinutes * 60, remaining: t.timerMinutes * 60 })
   }
 
-  function renderTask(t: Task) {
+  function renderTask(t: Task, index: number, group: Task[]) {
     const done = isDone(t)
     const daily = t.repeat === 'daily'
+    const inReorder = reordering === t.repeat
+
+    const body = (
+      <>
+        <GenreDot genres={genres} genreId={t.genreId} fallback={t.timerMinutes > 0 ? '⏱' : '📋'} />
+        <span className="row-main">
+          <span className={`row-title${done && !daily ? ' struck' : ''}`}>
+            {t.name}{t.timerMinutes > 0 ? ` (${t.timerMinutes}分)` : ''}
+          </span>
+          <span className="row-bonus">+ ¥{t.bonusAmount.toLocaleString()}</span>
+          {daily && !inReorder && (
+            <span className="habit-dots">
+              {week.map(d => (
+                <span
+                  key={d}
+                  className={`habit-dot${t.completedDates.includes(d) ? ' on' : ''}`}
+                  style={t.completedDates.includes(d) ? { background: theme.accent } : undefined}
+                  title={d}
+                />
+              ))}
+            </span>
+          )}
+        </span>
+      </>
+    )
+
+    if (inReorder) {
+      return (
+        <li key={t.id}>
+          <div className={`row-card${done ? ' done' : ''}`} style={{ cursor: 'default' }}>
+            {body}
+            <ReorderButtons
+              accent={theme.accent}
+              canUp={index > 0}
+              canDown={index < group.length - 1}
+              onUp={() => onMoveTask(t.id, -1)}
+              onDown={() => onMoveTask(t.id, 1)}
+            />
+          </div>
+        </li>
+      )
+    }
+
     return (
       <li key={t.id}>
         <div className={`row-card${done ? ' done' : ''}`}>
-          <button className="row-tap" onClick={() => openTask(t)}>
-            <GenreDot genres={genres} genreId={t.genreId} fallback={t.timerMinutes > 0 ? '⏱' : '📋'} />
-            <span className="row-main">
-              <span className={`row-title${done && !daily ? ' struck' : ''}`}>
-                {t.name}{t.timerMinutes > 0 ? ` (${t.timerMinutes}分)` : ''}
-              </span>
-              <span className="row-bonus">+ ¥{t.bonusAmount.toLocaleString()}</span>
-              {daily && (
-                <span className="habit-dots">
-                  {week.map(d => (
-                    <span
-                      key={d}
-                      className={`habit-dot${t.completedDates.includes(d) ? ' on' : ''}`}
-                      style={t.completedDates.includes(d) ? { background: theme.accent } : undefined}
-                      title={d}
-                    />
-                  ))}
-                </span>
-              )}
-            </span>
-          </button>
+          <button className="row-tap" onClick={() => openTask(t)}>{body}</button>
 
           {done ? (
             <button
@@ -203,7 +229,7 @@ export default function SavingsPage({
       <TopTabs
         tabs={[{ id: 'tasks' as Tab, label: 'タスク' }, { id: 'goals' as Tab, label: '貯金目標' }]}
         active={tab}
-        onChange={setTab}
+        onChange={t => { setTab(t); setReordering(null) }}
         accent={theme.accent}
         soft={theme.soft}
       />
@@ -224,18 +250,36 @@ export default function SavingsPage({
               </div>
             )}
 
-            <div className="section-header"><h3>デイリーミッション ({dailies.length})</h3></div>
+            <div className="section-header">
+              <h3>デイリーミッション ({dailies.length})</h3>
+              {dailies.length > 1 && (
+                <ReorderToggle
+                  active={reordering === 'daily'}
+                  accent={theme.accent}
+                  onToggle={() => setReordering(r => r === 'daily' ? null : 'daily')}
+                />
+              )}
+            </div>
             {dailies.length === 0 ? (
               <p className="empty-hint">毎日続けたいことを登録できます</p>
             ) : (
-              <ul className="item-list">{dailies.map(renderTask)}</ul>
+              <ul className="item-list">{dailies.map((t, i) => renderTask(t, i, dailies))}</ul>
             )}
 
-            <div className="section-header"><h3>タスク ({onces.length})</h3></div>
+            <div className="section-header">
+              <h3>タスク ({onces.length})</h3>
+              {onces.length > 1 && (
+                <ReorderToggle
+                  active={reordering === 'once'}
+                  accent={theme.accent}
+                  onToggle={() => setReordering(r => r === 'once' ? null : 'once')}
+                />
+              )}
+            </div>
             {onces.length === 0 ? (
               <p className="empty-hint">一度きりのタスクがありません</p>
             ) : (
-              <ul className="item-list">{onces.map(renderTask)}</ul>
+              <ul className="item-list">{onces.map((t, i) => renderTask(t, i, onces))}</ul>
             )}
 
             <div className="fab-row">

@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import type { Genre, Tag } from '../types'
 import ConfirmModal from '../components/ConfirmModal'
-import LabelManager, { type LabelDraft } from '../components/LabelManager'
+import LabelListPage, { type LabelDraft } from '../components/LabelListPage'
+import SubPage from '../components/SubPage'
 import { themeOf } from '../theme'
+import { CONTACT_FORM_URL } from '../config'
 
-type Sheet = 'genres' | 'tags' | null
+type View = 'menu' | 'genres' | 'tags'
 
 interface Props {
   genres: Genre[]
@@ -20,9 +22,19 @@ export default function MorePage({
   genres, tags, onSaveGenre, onRemoveGenre, onSaveTag, onRemoveTag, onReset,
 }: Props) {
   const theme = themeOf('more')
-  const [sheet, setSheet] = useState<Sheet>(null)
+  const [view, setView] = useState<View>('menu')
   const [confirmReset, setConfirmReset] = useState(false)
   const [notice, setNotice] = useState('')
+
+  /** Googleフォームを別タブで開く。URL未設定のうちは案内だけ出す */
+  function openContact() {
+    if (!CONTACT_FORM_URL) {
+      setNotice('お問い合わせ先は準備中です')
+      return
+    }
+    setNotice('')
+    window.open(CONTACT_FORM_URL, '_blank', 'noopener,noreferrer')
+  }
 
   return (
     <div className="page">
@@ -32,26 +44,30 @@ export default function MorePage({
 
       <div className="page-scroll">
         <div className="card menu-card">
-          <button className="menu-row" onClick={() => setSheet('genres')}>
+          <button className="menu-row" onClick={() => setView('genres')}>
             <span className="menu-dot" style={{ background: '#fbd0e0' }} />
             <span className="menu-label">ジャンル管理</span>
             <span className="menu-meta">{genres.length}件</span>
+            <span className="menu-chevron">›</span>
           </button>
-          <button className="menu-row" onClick={() => setSheet('tags')}>
+          <button className="menu-row" onClick={() => setView('tags')}>
             <span className="menu-dot" style={{ background: '#fbd0e0' }} />
             <span className="menu-label">タグ管理</span>
             <span className="menu-meta">{tags.length}件</span>
+            <span className="menu-chevron">›</span>
           </button>
         </div>
 
         <div className="card menu-card">
-          <button className="menu-row" onClick={() => setNotice('お問い合わせは次回の実装分です')}>
+          <button className="menu-row" onClick={openContact}>
             <span className="menu-dot" style={{ background: '#d8d2f7' }} />
             <span className="menu-label">お問い合わせ</span>
+            <span className="menu-chevron">›</span>
           </button>
           <button className="menu-row" onClick={() => setConfirmReset(true)}>
             <span className="menu-dot" style={{ background: '#d8d2f7' }} />
             <span className="menu-label">リセット</span>
+            <span className="menu-chevron">›</span>
           </button>
         </div>
 
@@ -60,33 +76,33 @@ export default function MorePage({
         )}
       </div>
 
-      {sheet === 'genres' && (
-        <LabelManager
-          title="ジャンル管理"
-          hint="1つの項目に1つだけ付きます。ここで決めた色が一覧のアイコンと分析の円グラフに使われます。"
-          items={genres}
-          withIcon
-          accent={theme.accent}
-          soft={theme.soft}
-          onSave={onSaveGenre}
-          onRemove={onRemoveGenre}
-          onClose={() => setSheet(null)}
-        />
+      {view === 'genres' && (
+        <SubPage title="ジャンル管理" accent={theme.accent} soft={theme.soft} onClose={() => setView('menu')}>
+          <LabelListPage
+            kind="ジャンル"
+            hint="1つの項目に1つだけ付きます。ここで決めた色が一覧のアイコンと分析の円グラフに使われます。"
+            items={genres}
+            withIcon
+            accent={theme.accent}
+            onSave={onSaveGenre}
+            onRemove={onRemoveGenre}
+          />
+        </SubPage>
       )}
 
-      {sheet === 'tags' && (
-        <LabelManager
-          title="タグ管理"
-          hint="1つの項目に何個でも付けられます。#アイナナ のように推し別・現場別で絞り込むのに使います。"
-          items={tags}
-          withIcon={false}
-          prefix="#"
-          accent={theme.accent}
-          soft={theme.soft}
-          onSave={onSaveTag}
-          onRemove={onRemoveTag}
-          onClose={() => setSheet(null)}
-        />
+      {view === 'tags' && (
+        <SubPage title="タグ管理" accent={theme.accent} soft={theme.soft} onClose={() => setView('menu')}>
+          <LabelListPage
+            kind="タグ"
+            hint="1つの項目に何個でも付けられます。#アイナナ のように推し別・現場別で絞り込むのに使います。"
+            items={tags}
+            withIcon={false}
+            prefix="#"
+            accent={theme.accent}
+            onSave={onSaveTag}
+            onRemove={onRemoveTag}
+          />
+        </SubPage>
       )}
 
       {confirmReset && (
