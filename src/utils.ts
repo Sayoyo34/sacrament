@@ -69,14 +69,23 @@ export function yen(n: number) {
   return `${n.toLocaleString()}円`
 }
 
+/** 配列の from 番目を取り出して to 番目に差し込む（to は取り出した後の位置） */
+export function moveInArray<T>(items: T[], from: number, to: number): T[] {
+  if (from === to || from < 0 || from >= items.length) return items
+  const copy = [...items]
+  const [moved] = copy.splice(from, 1)
+  copy.splice(Math.max(0, Math.min(copy.length, to)), 0, moved)
+  return copy
+}
+
 /**
- * 同じグループ内で1つ上／下に動かし、そのグループの order を振り直す。
+ * 同じグループ内で to 番目へ動かし、そのグループの order を振り直す。
  * 未定と毎月、デイリーとタスクのように区分が分かれた一覧で使う。
  */
-export function moveWithinGroup<T extends { id: string; order: number }>(
+export function reorderWithinGroup<T extends { id: string; order: number }>(
   items: T[],
   id: string,
-  delta: number,
+  to: number,
   groupOf: (item: T) => string,
 ): T[] {
   const target = items.find(i => i.id === id)
@@ -87,14 +96,9 @@ export function moveWithinGroup<T extends { id: string; order: number }>(
     .sort((a, b) => a.order - b.order)
 
   const from = group.findIndex(i => i.id === id)
-  const to = from + delta
-  if (to < 0 || to >= group.length) return items
+  if (from === -1) return items
 
-  const swapped = [...group]
-  swapped[from] = group[to]
-  swapped[to] = group[from]
-
-  const orderById = new Map(swapped.map((it, i) => [it.id, i]))
+  const orderById = new Map(moveInArray(group, from, to).map((it, i) => [it.id, i]))
   return items.map(i => orderById.has(i.id) ? { ...i, order: orderById.get(i.id)! } : i)
 }
 

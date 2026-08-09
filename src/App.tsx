@@ -9,7 +9,7 @@ import BottomNav from './components/BottomNav'
 import type { LabelDraft } from './components/LabelListPage'
 import { DEFAULT_GENRES, load, resetAll, save } from './storage'
 import type { Page } from './theme'
-import { generateId, moveWithinGroup, todayStr } from './utils'
+import { generateId, todayStr } from './utils'
 import './App.css'
 
 export default function App() {
@@ -102,9 +102,13 @@ export default function App() {
     setPlanItems(prev => prev.filter(p => p.id !== id))
   }
 
-  /** 未定は未定の中、毎月は毎月の中だけで動かす */
-  function movePlan(id: string, delta: number) {
-    setPlanItems(prev => moveWithinGroup(prev, id, delta, p => p.kind))
+  /** 並び替えの「保存」で、並び順の確定と削除をまとめて反映する */
+  function applyPlanEdit(orderedIds: string[], removedIds: string[]) {
+    setPlanItems(prev => {
+      const kept = removedIds.length ? prev.filter(p => !removedIds.includes(p.id)) : prev
+      const orderById = new Map(orderedIds.map((id, i) => [id, i]))
+      return kept.map(p => orderById.has(p.id) ? { ...p, order: orderById.get(p.id)! } : p)
+    })
   }
 
   function deductPlan(id: string, amount: number) {
@@ -140,9 +144,15 @@ export default function App() {
     setSavingsEvents(prev => prev.filter(e => e.taskId !== id))
   }
 
-  /** デイリーミッションとタスクはそれぞれの中だけで動かす */
-  function moveTask(id: string, delta: number) {
-    setTasks(prev => moveWithinGroup(prev, id, delta, t => t.repeat))
+  function applyTaskEdit(orderedIds: string[], removedIds: string[]) {
+    setTasks(prev => {
+      const kept = removedIds.length ? prev.filter(t => !removedIds.includes(t.id)) : prev
+      const orderById = new Map(orderedIds.map((id, i) => [id, i]))
+      return kept.map(t => orderById.has(t.id) ? { ...t, order: orderById.get(t.id)! } : t)
+    })
+    if (removedIds.length) {
+      setSavingsEvents(prev => prev.filter(e => !removedIds.includes(e.taskId)))
+    }
   }
 
   function completeTask(id: string) {
@@ -193,11 +203,25 @@ export default function App() {
       : g))
   }
 
+  /** 消した目標を参照していた貯金の記録とタスクを、行き先なしに戻す */
+  function unassignGoals(ids: string[]) {
+    setSavingsEvents(prev => prev.map(e => ids.includes(e.goalId) ? { ...e, goalId: '' } : e))
+    setTasks(prev => prev.map(t => ids.includes(t.goalId) ? { ...t, goalId: '' } : t))
+  }
+
   /** 目標を消しても貯めた記録は消さず、行き先なしに戻すだけにする */
-  function removeGoal(id: string) {
-    setGoals(prev => prev.filter(g => g.id !== id))
-    setSavingsEvents(prev => prev.map(e => e.goalId === id ? { ...e, goalId: '' } : e))
-    setTasks(prev => prev.map(t => t.goalId === id ? { ...t, goalId: '' } : t))
+  function removeGoals(ids: string[]) {
+    setGoals(prev => prev.filter(g => !ids.includes(g.id)))
+    unassignGoals(ids)
+  }
+
+  function applyGoalEdit(orderedIds: string[], removedIds: string[]) {
+    setGoals(prev => {
+      const kept = removedIds.length ? prev.filter(g => !removedIds.includes(g.id)) : prev
+      const orderById = new Map(orderedIds.map((id, i) => [id, i]))
+      return kept.map(g => orderById.has(g.id) ? { ...g, order: orderById.get(g.id)! } : g)
+    })
+    if (removedIds.length) unassignGoals(removedIds)
   }
 
   // ── つもり貯金の切り崩し ────────────────
@@ -241,11 +265,29 @@ export default function App() {
   }
 
   /** 削除したジャンルを参照している項目は未設定に戻す */
-  function removeGenre(id: string) {
-    setGenres(prev => prev.filter(g => g.id !== id))
-    setEntries(prev => prev.map(e => e.genreId === id ? { ...e, genreId: '' } : e))
-    setPlanItems(prev => prev.map(p => p.genreId === id ? { ...p, genreId: '' } : p))
-    setTasks(prev => prev.map(t => t.genreId === id ? { ...t, genreId: '' } : t))
+  /** 消したジャンルを参照していた項目を未設定に戻す */
+  function unassignGenres(ids: string[]) {
+    setEntries(prev => prev.map(e => ids.includes(e.genreId) ? { ...e, genreId: '' } : e))
+    setPlanItems(prev => prev.map(p => ids.includes(p.genreId) ? { ...p, genreId: '' } : p))
+    setTasks(prev => prev.map(t => ids.includes(t.genreId) ? { ...t, genreId: '' } : t))
+  }
+
+  function removeGenres(ids: string[]) {
+    setGenres(prev => prev.filter(g => !ids.includes(g.id)))
+    unassignGenres(ids)
+  }
+
+  /** ジャンルとタグは配列の並びがそのまま表示順 */
+  function applyGenreEdit(orderedIds: string[], removedIds: string[]) {
+    setGenres(prev => {
+      const kept = prev.filter(g => !removedIds.includes(g.id))
+      const byId = new Map(kept.map(g => [g.id, g]))
+      const ordered = orderedIds.map(id => byId.get(id)).filter((g): g is Genre => !!g)
+      // 並び順に載っていないものが万一あれば末尾に残す
+      const rest = kept.filter(g => !orderedIds.includes(g.id))
+      return [...ordered, ...rest]
+    })
+    if (removedIds.length) unassignGenres(removedIds)
   }
 
   function saveTag(d: LabelDraft) {
@@ -257,10 +299,28 @@ export default function App() {
   }
 
   /** 削除したタグは各項目のタグ一覧からも外す */
-  function removeTag(id: string) {
-    setTags(prev => prev.filter(t => t.id !== id))
-    setEntries(prev => prev.map(e => e.tagIds.includes(id) ? { ...e, tagIds: e.tagIds.filter(x => x !== id) } : e))
-    setPlanItems(prev => prev.map(p => p.tagIds.includes(id) ? { ...p, tagIds: p.tagIds.filter(x => x !== id) } : p))
+  /** 消したタグを各項目のタグ一覧から外す */
+  function unassignTags(ids: string[]) {
+    setEntries(prev => prev.map(e => e.tagIds.some(x => ids.includes(x))
+      ? { ...e, tagIds: e.tagIds.filter(x => !ids.includes(x)) } : e))
+    setPlanItems(prev => prev.map(p => p.tagIds.some(x => ids.includes(x))
+      ? { ...p, tagIds: p.tagIds.filter(x => !ids.includes(x)) } : p))
+  }
+
+  function removeTags(ids: string[]) {
+    setTags(prev => prev.filter(t => !ids.includes(t.id)))
+    unassignTags(ids)
+  }
+
+  function applyTagEdit(orderedIds: string[], removedIds: string[]) {
+    setTags(prev => {
+      const kept = prev.filter(t => !removedIds.includes(t.id))
+      const byId = new Map(kept.map(t => [t.id, t]))
+      const ordered = orderedIds.map(id => byId.get(id)).filter((t): t is Tag => !!t)
+      const rest = kept.filter(t => !orderedIds.includes(t.id))
+      return [...ordered, ...rest]
+    })
+    if (removedIds.length) unassignTags(removedIds)
   }
 
   // ── リセット ───────────────────────────
@@ -331,11 +391,12 @@ export default function App() {
             savingsWithdrawn={savingsWithdrawn}
             onSaveTask={saveTask}
             onRemoveTask={removeTask}
-            onMoveTask={moveTask}
+            onApplyTaskEdit={applyTaskEdit}
             onCompleteTask={completeTask}
             onUncompleteTask={uncompleteTask}
             onSaveGoal={saveGoal}
-            onRemoveGoal={removeGoal}
+            onRemoveGoals={removeGoals}
+            onApplyGoalEdit={applyGoalEdit}
           />
         )}
         {page === 'plans' && (
@@ -348,7 +409,7 @@ export default function App() {
             goalRows={goalRows}
             onSavePlan={savePlan}
             onRemovePlan={removePlan}
-            onMovePlan={movePlan}
+            onApplyPlanEdit={applyPlanEdit}
             onDeduct={deductPlan}
             onUndoDeduct={undoDeductPlan}
             onWithdrawSavings={withdrawSavings}
@@ -369,9 +430,11 @@ export default function App() {
             genres={genres}
             tags={tags}
             onSaveGenre={saveGenre}
-            onRemoveGenre={removeGenre}
+            onRemoveGenres={removeGenres}
+            onApplyGenreEdit={applyGenreEdit}
             onSaveTag={saveTag}
-            onRemoveTag={removeTag}
+            onRemoveTags={removeTags}
+            onApplyTagEdit={applyTagEdit}
             onReset={handleReset}
           />
         )}

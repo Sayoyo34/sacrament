@@ -3,7 +3,8 @@ import type { Genre, GoalRow, PlanItem, PlanKind, Tag, Wallet } from '../types'
 import DetailModal, { DetailBlock, DetailRow } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
 import { GenreDot, GenreSelect, TagList, TagPicker } from '../components/Pickers'
-import ReorderButtons, { ReorderToggle } from '../components/Reorder'
+import EditableList, { EditToolbar, ReorderButton, type EditRow } from '../components/EditableList'
+import { useEditSession } from '../useEditSession'
 import TopTabs from '../components/TopTabs'
 import { themeOf } from '../theme'
 import { yen } from '../utils'
@@ -32,7 +33,7 @@ interface Props {
   goalRows: GoalRow[]
   onSavePlan: (draft: PlanDraft) => void
   onRemovePlan: (id: string) => void
-  onMovePlan: (id: string, delta: number) => void
+  onApplyPlanEdit: (orderedIds: string[], removedIds: string[]) => void
   onDeduct: (id: string, amount: number) => void
   onUndoDeduct: (id: string, amount: number) => void
   onWithdrawSavings: (goalId: string, amount: number) => void
@@ -134,7 +135,8 @@ function DeductControls({ remaining, done, accent, onDeduct, onUndo, confirmLabe
 
 export default function PlansPage({
   planItems, wallets, genres, tags, totalBalance, goalRows,
-  onSavePlan, onRemovePlan, onMovePlan, onDeduct, onUndoDeduct, onWithdrawSavings, onUndoWithdrawSavings,
+  onSavePlan, onRemovePlan, onApplyPlanEdit,
+  onDeduct, onUndoDeduct, onWithdrawSavings, onUndoWithdrawSavings,
 }: Props) {
   const theme = themeOf('plans')
   const [tab, setTab] = useState<Tab>('list')
@@ -145,6 +147,24 @@ export default function PlansPage({
   const [breakdown, setBreakdown] = useState(false)
   const [editError, setEditError] = useState('')
   const [reordering, setReordering] = useState<PlanKind | null>(null)
+  const [confirmSave, setConfirmSave] = useState(false)
+  const session = useEditSession<PlanItem>()
+
+  function startReorder(kind: PlanKind, group: PlanItem[]) {
+    setReordering(kind)
+    session.start(group)
+  }
+
+  function exitReorder() {
+    setReordering(null)
+    session.cancel()
+  }
+
+  function commitReorder() {
+    onApplyPlanEdit(session.draft.map(p => p.id), session.removed)
+    exitReorder()
+    setConfirmSave(false)
+  }
 
   const sorted = planItems.slice().sort((a, b) => a.order - b.order)
   const once = sorted.filter(p => p.kind === 'once')
@@ -194,13 +214,12 @@ export default function PlansPage({
     setEditError('')
   }
 
-  function renderRow(p: PlanItem, index: number, group: PlanItem[]) {
+  /** 行の中身。並び替え中は右側の金額を隠してハンドルの場所を空ける */
+  function rowBody(p: PlanItem, compact: boolean) {
     const showProgress = tab === 'calc' && p.kind === 'once'
     const done = p.kind === 'once' && p.estimatedCost > 0 && p.deductedAmount >= p.estimatedCost
     const genre = genres.find(g => g.id === p.genreId)
-    const inReorder = tab === 'list' && reordering === p.kind
-
-    const body = (
+    return (
       <>
         <GenreDot genres={genres} genreId={p.genreId} fallback="🗒" />
         <span className="row-main">
@@ -216,7 +235,7 @@ export default function PlansPage({
             <span className="row-sub"><TagList tags={tags} ids={p.tagIds} /></span>
           )}
         </span>
-        {!inReorder && (
+        {!compact && (
           <span className="row-right">
             {showProgress ? (
               <>
@@ -234,33 +253,61 @@ export default function PlansPage({
         )}
       </>
     )
+  }
 
-    if (inReorder) {
-      return (
-        <li key={p.id}>
-          <div className={`row-card${done ? ' done' : ''}`} style={{ cursor: 'default' }}>
-            {body}
-            <ReorderButtons
-              accent={theme.accent}
-              canUp={index > 0}
-              canDown={index < group.length - 1}
-              onUp={() => onMovePlan(p.id, -1)}
-              onDown={() => onMovePlan(p.id, 1)}
-            />
-          </div>
-        </li>
-      )
-    }
-
+  function renderRow(p: PlanItem) {
+    const done = p.kind === 'once' && p.estimatedCost > 0 && p.deductedAmount >= p.estimatedCost
     return (
       <li key={p.id}>
         <button
           className={`row-card${done ? ' done' : ''}`}
           onClick={() => tab === 'list' ? openEdit(p) : setDeducting(p.id)}
         >
-          {body}
+          {rowBody(p, false)}
         </button>
       </li>
+    )
+  }
+
+  function renderSection(kind: PlanKind, group: PlanItem[], title: string, emptyHint: string) {
+    const inReorder = tab === 'list' && reordering === kind
+    const rows: EditRow[] = session.draft.map(p => ({ id: p.id, content: rowBody(p, true) }))
+    const count = inReorder ? session.draft.length : group.length
+
+    return (
+      <>
+        <div className="section-header">
+          <h3>{title} ({count})</h3>
+          {tab === 'list' && group.length > 1 && reordering === null && (
+            <ReorderButton onClick={() => startReorder(kind, group)} />
+          )}
+        </div>
+
+        {inReorder && (
+          <EditToolbar
+            selectedCount={session.selected.size}
+            removedCount={session.removed.length}
+            accent={theme.accent}
+            onCancel={exitReorder}
+            onDelete={session.removeSelected}
+            onDone={() => session.removed.length > 0 ? setConfirmSave(true) : commitReorder()}
+          />
+        )}
+
+        {inReorder ? (
+          <EditableList
+            rows={rows}
+            selected={session.selected}
+            accent={theme.accent}
+            onToggle={session.toggle}
+            onReorder={session.reorder}
+          />
+        ) : group.length === 0 ? (
+          <p className="empty-hint">{emptyHint}</p>
+        ) : (
+          <ul className="item-list">{group.map(renderRow)}</ul>
+        )}
+      </>
     )
   }
 
@@ -269,7 +316,7 @@ export default function PlansPage({
       <TopTabs
         tabs={[{ id: 'list' as Tab, label: '出費予定' }, { id: 'calc' as Tab, label: '計算' }]}
         active={tab}
-        onChange={t => { setTab(t); setEditing(null); setDeducting(null); setReordering(null) }}
+        onChange={t => { setTab(t); setEditing(null); setDeducting(null); exitReorder() }}
         accent={theme.accent}
         soft={theme.soft}
       />
@@ -282,37 +329,8 @@ export default function PlansPage({
           </div>
         )}
 
-        <div className="section-header">
-          <h3>未定 ({once.length})</h3>
-          {tab === 'list' && once.length > 1 && (
-            <ReorderToggle
-              active={reordering === 'once'}
-              accent={theme.accent}
-              onToggle={() => setReordering(r => r === 'once' ? null : 'once')}
-            />
-          )}
-        </div>
-        {once.length === 0 ? (
-          <p className="empty-hint">まだ予定がありません</p>
-        ) : (
-          <ul className="item-list">{once.map((p, i) => renderRow(p, i, once))}</ul>
-        )}
-
-        <div className="section-header">
-          <h3>毎月 ({monthly.length})</h3>
-          {tab === 'list' && monthly.length > 1 && (
-            <ReorderToggle
-              active={reordering === 'monthly'}
-              accent={theme.accent}
-              onToggle={() => setReordering(r => r === 'monthly' ? null : 'monthly')}
-            />
-          )}
-        </div>
-        {monthly.length === 0 ? (
-          <p className="empty-hint">定期支出の登録がありません</p>
-        ) : (
-          <ul className="item-list">{monthly.map((p, i) => renderRow(p, i, monthly))}</ul>
-        )}
+        {renderSection('once', once, '未定', 'まだ予定がありません')}
+        {renderSection('monthly', monthly, '毎月', '定期支出の登録がありません')}
 
         {tab === 'calc' && (
           <>
@@ -568,6 +586,15 @@ export default function PlansPage({
           message={`「${deleteTarget.name}」を削除します。よろしいですか？`}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => { onRemovePlan(deleteTarget.id); setDeleteTarget(null); setEditing(null) }}
+        />
+      )}
+
+      {confirmSave && (
+        <ConfirmModal
+          message={`${session.removed.length}件の予定を削除して並び順を保存します。削除は取り消せません。よろしいですか？`}
+          confirmText="保存する"
+          onCancel={() => setConfirmSave(false)}
+          onConfirm={commitReorder}
         />
       )}
     </div>

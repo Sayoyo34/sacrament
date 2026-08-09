@@ -322,32 +322,116 @@
 .check-btn.on { color: #fff; border-color: transparent; }
 .check-btn.play { font-size: 0.8rem; }
 
-/* ── 並び替え ─────────────────────────── */
-.reorder-btns {
+/* ── 並び替え・まとめて削除 ─────────────── */
+.edit-toolbar {
   display: flex;
-  gap: 0.35rem;
-  flex-shrink: 0;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.25rem 0 0.85rem;
 }
 
-.reorder-btn {
-  width: 34px;
-  height: 34px;
+.edit-toolbar-right {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.edit-count {
+  font-size: 0.75rem;
+  color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.round-btn {
+  width: 40px;
+  height: 40px;
   padding: 0;
-  border-radius: 8px;
-  border: 1.5px solid var(--border);
-  background: var(--bg);
-  font-size: 1rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: none;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font-size: 0.95rem;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.reorder-btn:disabled {
-  opacity: 0.3;
-  cursor: default;
-  border-color: var(--border) !important;
-  color: var(--text) !important;
+.round-btn:disabled { opacity: 0.35; cursor: default; }
+.round-btn:disabled:active { transform: none; }
+
+.edit-row { touch-action: pan-y; }
+
+.edit-row.dragging {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+  transform: scale(1.02);
 }
 
-.reorder-btn:disabled:active { transform: none; }
+.select-circle {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: transparent;
+  color: #fff;
+  font-size: 0.75rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 3本線のマーク */
+.handle-icon {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 18px;
+}
+
+.handle-icon i {
+  display: block;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+.drag-handle {
+  flex-shrink: 0;
+  padding: 0.5rem 0.6rem;
+  display: flex;
+  align-items: center;
+  cursor: grab;
+  color: var(--text);
+  /* ハンドルの上では縦スクロールを奪ってドラッグに使う */
+  touch-action: none;
+}
+
+.drag-handle:active { cursor: grabbing; }
+
+/* 並び替えを始めるボタン（見出し右・サブページ右上） */
+.reorder-open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: var(--code-bg);
+  color: var(--text-h);
+}
+
+.reorder-open:active { transform: none; }
 
 .habit-dots { display: flex; gap: 3px; margin-top: 4px; }
 

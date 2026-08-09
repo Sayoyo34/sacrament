@@ -3,7 +3,8 @@ import type { ActiveTimer, Genre, GoalDraft, GoalRow, SavingsEvent, Task, TaskRe
 import DetailModal, { DetailBlock, DetailRow } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
 import { GenreDot, GenreSelect } from '../components/Pickers'
-import ReorderButtons, { ReorderToggle } from '../components/Reorder'
+import EditableList, { EditToolbar, ReorderButton, type EditRow } from '../components/EditableList'
+import { useEditSession } from '../useEditSession'
 import { ColorSwatches, IconSwatches } from '../components/Swatches'
 import TopTabs from '../components/TopTabs'
 import { themeOf } from '../theme'
@@ -32,11 +33,12 @@ interface Props {
   savingsWithdrawn: number
   onSaveTask: (draft: TaskDraft) => void
   onRemoveTask: (id: string) => void
-  onMoveTask: (id: string, delta: number) => void
+  onApplyTaskEdit: (orderedIds: string[], removedIds: string[]) => void
   onCompleteTask: (id: string) => void
   onUncompleteTask: (id: string) => void
   onSaveGoal: (draft: GoalDraft) => void
-  onRemoveGoal: (id: string) => void
+  onRemoveGoals: (ids: string[]) => void
+  onApplyGoalEdit: (orderedIds: string[], removedIds: string[]) => void
 }
 
 function fmt(seconds: number) {
@@ -47,7 +49,8 @@ function fmt(seconds: number) {
 
 export default function SavingsPage({
   tasks, savingsEvents, genres, goalRows, savingsEarned, savingsWithdrawn,
-  onSaveTask, onRemoveTask, onMoveTask, onCompleteTask, onUncompleteTask, onSaveGoal, onRemoveGoal,
+  onSaveTask, onRemoveTask, onApplyTaskEdit,
+  onCompleteTask, onUncompleteTask, onSaveGoal, onRemoveGoals, onApplyGoalEdit,
 }: Props) {
   const savingsKept = savingsEarned - savingsWithdrawn
   const theme = themeOf('savings')
@@ -56,6 +59,34 @@ export default function SavingsPage({
   const [taskError, setTaskError] = useState('')
   const [goalError, setGoalError] = useState('')
   const [reordering, setReordering] = useState<TaskRepeat | null>(null)
+  const [confirmSave, setConfirmSave] = useState(false)
+  const session = useEditSession<Task>()
+
+  function startReorder(repeat: TaskRepeat, group: Task[]) {
+    setReordering(repeat)
+    session.start(group)
+  }
+
+  function exitReorder() {
+    setReordering(null)
+    session.cancel()
+  }
+
+  function commitReorder() {
+    onApplyTaskEdit(session.draft.map(t => t.id), session.removed)
+    exitReorder()
+    setConfirmSave(false)
+  }
+
+  // 貯金目標の並び替え（「行き先なし」は対象外なので除いて渡す）
+  const goalSession = useEditSession<GoalRow>()
+  const [confirmGoalSave, setConfirmGoalSave] = useState(false)
+
+  function commitGoalReorder() {
+    onApplyGoalEdit(goalSession.draft.map(g => g.id), goalSession.removed)
+    goalSession.cancel()
+    setConfirmGoalSave(false)
+  }
   const [tab, setTab] = useState<Tab>('tasks')
   const [draft, setDraft] = useState<TaskDraft | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
@@ -138,12 +169,11 @@ export default function SavingsPage({
     setTimer({ taskId: t.id, totalSeconds: t.timerMinutes * 60, remaining: t.timerMinutes * 60 })
   }
 
-  function renderTask(t: Task, index: number, group: Task[]) {
+  /** 行の中身。並び替え中はハビットのドット列を隠す */
+  function taskBody(t: Task, compact: boolean) {
     const done = isDone(t)
     const daily = t.repeat === 'daily'
-    const inReorder = reordering === t.repeat
-
-    const body = (
+    return (
       <>
         <GenreDot genres={genres} genreId={t.genreId} fallback={t.timerMinutes > 0 ? '⏱' : '📋'} />
         <span className="row-main">
@@ -151,7 +181,7 @@ export default function SavingsPage({
             {t.name}{t.timerMinutes > 0 ? ` (${t.timerMinutes}分)` : ''}
           </span>
           <span className="row-bonus">+ ¥{t.bonusAmount.toLocaleString()}</span>
-          {daily && !inReorder && (
+          {daily && !compact && (
             <span className="habit-dots">
               {week.map(d => (
                 <span
@@ -166,23 +196,12 @@ export default function SavingsPage({
         </span>
       </>
     )
+  }
 
-    if (inReorder) {
-      return (
-        <li key={t.id}>
-          <div className={`row-card${done ? ' done' : ''}`} style={{ cursor: 'default' }}>
-            {body}
-            <ReorderButtons
-              accent={theme.accent}
-              canUp={index > 0}
-              canDown={index < group.length - 1}
-              onUp={() => onMoveTask(t.id, -1)}
-              onDown={() => onMoveTask(t.id, 1)}
-            />
-          </div>
-        </li>
-      )
-    }
+  function renderTask(t: Task) {
+    const done = isDone(t)
+    const daily = t.repeat === 'daily'
+    const body = taskBody(t, false)
 
     return (
       <li key={t.id}>
@@ -221,6 +240,76 @@ export default function SavingsPage({
     )
   }
 
+  /** 「行き先なし」は並び替えも削除もできないので、実在する目標だけ扱う */
+  const realGoals = goalRows.filter(g => g.id)
+
+  function goalBody(g: GoalRow) {
+    const ratio = g.targetAmount > 0 ? Math.min(1, g.kept / g.targetAmount) : 0
+    return (
+      <>
+        <span className="genre-dot" style={{ background: `${g.color}33`, width: 40, height: 40, fontSize: 20 }}>
+          {g.icon}
+        </span>
+        <span className="row-main">
+          <span className="row-title">{g.name}</span>
+          <span className="row-sub">
+            {g.targetAmount > 0
+              ? `${g.kept.toLocaleString()} / ${g.targetAmount.toLocaleString()}円`
+              : `${g.kept.toLocaleString()}円（上限なし）`}
+          </span>
+          <span className="bar">
+            <span className="bar-fill" style={{ width: `${ratio * 100}%`, background: g.color }} />
+          </span>
+        </span>
+        {g.targetAmount > 0 && (
+          <span className="row-amount" style={{ color: g.color }}>{Math.round(ratio * 100)}%</span>
+        )}
+      </>
+    )
+  }
+
+  function renderSection(repeat: TaskRepeat, group: Task[], title: string, emptyHint: string) {
+    const inReorder = reordering === repeat
+    const rows: EditRow[] = session.draft.map(t => ({ id: t.id, content: taskBody(t, true) }))
+    const count = inReorder ? session.draft.length : group.length
+
+    return (
+      <>
+        <div className="section-header">
+          <h3>{title} ({count})</h3>
+          {group.length > 1 && reordering === null && (
+            <ReorderButton onClick={() => startReorder(repeat, group)} />
+          )}
+        </div>
+
+        {inReorder && (
+          <EditToolbar
+            selectedCount={session.selected.size}
+            removedCount={session.removed.length}
+            accent={theme.accent}
+            onCancel={exitReorder}
+            onDelete={session.removeSelected}
+            onDone={() => session.removed.length > 0 ? setConfirmSave(true) : commitReorder()}
+          />
+        )}
+
+        {inReorder ? (
+          <EditableList
+            rows={rows}
+            selected={session.selected}
+            accent={theme.accent}
+            onToggle={session.toggle}
+            onReorder={session.reorder}
+          />
+        ) : group.length === 0 ? (
+          <p className="empty-hint">{emptyHint}</p>
+        ) : (
+          <ul className="item-list">{group.map(renderTask)}</ul>
+        )}
+      </>
+    )
+  }
+
   const timerTask = tasks.find(t => t.id === timer?.taskId)
   const draftGenre = genres.find(g => g.id === draft?.genreId)
 
@@ -229,7 +318,7 @@ export default function SavingsPage({
       <TopTabs
         tabs={[{ id: 'tasks' as Tab, label: 'タスク' }, { id: 'goals' as Tab, label: '貯金目標' }]}
         active={tab}
-        onChange={t => { setTab(t); setReordering(null) }}
+        onChange={t => { setTab(t); exitReorder(); goalSession.cancel() }}
         accent={theme.accent}
         soft={theme.soft}
       />
@@ -250,37 +339,8 @@ export default function SavingsPage({
               </div>
             )}
 
-            <div className="section-header">
-              <h3>デイリーミッション ({dailies.length})</h3>
-              {dailies.length > 1 && (
-                <ReorderToggle
-                  active={reordering === 'daily'}
-                  accent={theme.accent}
-                  onToggle={() => setReordering(r => r === 'daily' ? null : 'daily')}
-                />
-              )}
-            </div>
-            {dailies.length === 0 ? (
-              <p className="empty-hint">毎日続けたいことを登録できます</p>
-            ) : (
-              <ul className="item-list">{dailies.map((t, i) => renderTask(t, i, dailies))}</ul>
-            )}
-
-            <div className="section-header">
-              <h3>タスク ({onces.length})</h3>
-              {onces.length > 1 && (
-                <ReorderToggle
-                  active={reordering === 'once'}
-                  accent={theme.accent}
-                  onToggle={() => setReordering(r => r === 'once' ? null : 'once')}
-                />
-              )}
-            </div>
-            {onces.length === 0 ? (
-              <p className="empty-hint">一度きりのタスクがありません</p>
-            ) : (
-              <ul className="item-list">{onces.map((t, i) => renderTask(t, i, onces))}</ul>
-            )}
+            {renderSection('daily', dailies, 'デイリーミッション', '毎日続けたいことを登録できます')}
+            {renderSection('once', onces, 'タスク', '一度きりのタスクがありません')}
 
             <div className="fab-row">
               <button
@@ -306,15 +366,39 @@ export default function SavingsPage({
               <div className="calc-row"><span>{monthLabel(thisMonth())}に貯めた額</span><span>¥{monthSavings.toLocaleString()}</span></div>
             </div>
 
-            <div className="section-header"><h3>目標 ({goalRows.filter(g => g.id).length})</h3></div>
-            {goalRows.length === 0 ? (
+            <div className="section-header">
+              <h3>目標 ({goalSession.editing ? goalSession.draft.length : realGoals.length})</h3>
+              {!goalSession.editing && realGoals.length > 1 && (
+                <ReorderButton onClick={() => goalSession.start(realGoals)} />
+              )}
+            </div>
+
+            {goalSession.editing && (
+              <EditToolbar
+                selectedCount={goalSession.selected.size}
+                removedCount={goalSession.removed.length}
+                accent={theme.accent}
+                onCancel={goalSession.cancel}
+                onDelete={goalSession.removeSelected}
+                onDone={() => goalSession.removed.length > 0 ? setConfirmGoalSave(true) : commitGoalReorder()}
+              />
+            )}
+
+            {goalSession.editing ? (
+              <EditableList
+                rows={goalSession.draft.map(g => ({ id: g.id, content: goalBody(g) }))}
+                selected={goalSession.selected}
+                accent={theme.accent}
+                onToggle={goalSession.toggle}
+                onReorder={goalSession.reorder}
+              />
+            ) : goalRows.length === 0 ? (
               <p className="empty-hint">
                 貯金の行き先を作れます<br />+ボタンで追加できます
               </p>
             ) : (
               <ul className="item-list">
                 {goalRows.map(g => {
-                  const ratio = g.targetAmount > 0 ? Math.min(1, g.kept / g.targetAmount) : 0
                   const unassigned = g.id === ''
                   return (
                     <li key={g.id || '__none'}>
@@ -327,23 +411,7 @@ export default function SavingsPage({
                           setGoalDraft({ id: g.id, name: g.name, icon: g.icon, color: g.color, targetAmount: g.targetAmount })
                         }}
                       >
-                        <span className="genre-dot" style={{ background: `${g.color}33`, width: 40, height: 40, fontSize: 20 }}>
-                          {g.icon}
-                        </span>
-                        <span className="row-main">
-                          <span className="row-title">{g.name}</span>
-                          <span className="row-sub">
-                            {g.targetAmount > 0
-                              ? `${g.kept.toLocaleString()} / ${g.targetAmount.toLocaleString()}円`
-                              : `${g.kept.toLocaleString()}円（上限なし）`}
-                          </span>
-                          <span className="bar">
-                            <span className="bar-fill" style={{ width: `${ratio * 100}%`, background: g.color }} />
-                          </span>
-                        </span>
-                        {g.targetAmount > 0 && (
-                          <span className="row-amount" style={{ color: g.color }}>{Math.round(ratio * 100)}%</span>
-                        )}
+                        {goalBody(g)}
                       </button>
                     </li>
                   )
@@ -351,18 +419,20 @@ export default function SavingsPage({
               </ul>
             )}
 
-            <div className="fab-row">
-              <button
-                className="fab"
-                style={{ background: theme.accent, boxShadow: `0 4px 14px ${theme.accent}66` }}
-                onClick={() => {
-                  setGoalError('')
-                  setGoalDraft({ id: null, name: '', icon: '🐷', color: '#f472b6', targetAmount: 0 })
-                }}
-              >
-                +
-              </button>
-            </div>
+            {!goalSession.editing && (
+              <div className="fab-row">
+                <button
+                  className="fab"
+                  style={{ background: theme.accent, boxShadow: `0 4px 14px ${theme.accent}66` }}
+                  onClick={() => {
+                    setGoalError('')
+                    setGoalDraft({ id: null, name: '', icon: '🐷', color: '#f472b6', targetAmount: 0 })
+                  }}
+                >
+                  +
+                </button>
+              </div>
+            )}
 
             <div className="section-header"><h3>最近の記録</h3></div>
             {savingsEvents.length === 0 ? (
@@ -541,7 +611,7 @@ export default function SavingsPage({
         <ConfirmModal
           message={`貯金目標「${deleteGoal.name}」を削除します。貯めた ${yen(deleteGoal.kept)} は行き先なしとして残ります。よろしいですか？`}
           onCancel={() => setDeleteGoal(null)}
-          onConfirm={() => { onRemoveGoal(deleteGoal.id); setDeleteGoal(null); setGoalDraft(null) }}
+          onConfirm={() => { onRemoveGoals([deleteGoal.id]); setDeleteGoal(null); setGoalDraft(null) }}
         />
       )}
 
@@ -550,6 +620,24 @@ export default function SavingsPage({
           message={`「${deleteTarget.name}」を削除します。貯めた分の記録も削除されます。よろしいですか？`}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => { onRemoveTask(deleteTarget.id); setDeleteTarget(null); setDraft(null) }}
+        />
+      )}
+
+      {confirmSave && (
+        <ConfirmModal
+          message={`${session.removed.length}件のタスクを削除して並び順を保存します。それぞれで貯めた分の記録も消え、取り消せません。よろしいですか？`}
+          confirmText="保存する"
+          onCancel={() => setConfirmSave(false)}
+          onConfirm={commitReorder}
+        />
+      )}
+
+      {confirmGoalSave && (
+        <ConfirmModal
+          message={`${goalSession.removed.length}件の貯金目標を削除して並び順を保存します。貯めた分は行き先なしとして残りますが、目標は元に戻せません。よろしいですか？`}
+          confirmText="保存する"
+          onCancel={() => setConfirmGoalSave(false)}
+          onConfirm={commitGoalReorder}
         />
       )}
     </div>

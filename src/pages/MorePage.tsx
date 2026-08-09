@@ -12,14 +12,17 @@ interface Props {
   genres: Genre[]
   tags: Tag[]
   onSaveGenre: (draft: LabelDraft) => void
-  onRemoveGenre: (id: string) => void
+  onRemoveGenres: (ids: string[]) => void
+  onApplyGenreEdit: (orderedIds: string[], removedIds: string[]) => void
   onSaveTag: (draft: LabelDraft) => void
-  onRemoveTag: (id: string) => void
+  onRemoveTags: (ids: string[]) => void
+  onApplyTagEdit: (orderedIds: string[], removedIds: string[]) => void
   onReset: () => void
 }
 
 export default function MorePage({
-  genres, tags, onSaveGenre, onRemoveGenre, onSaveTag, onRemoveTag, onReset,
+  genres, tags, onSaveGenre, onRemoveGenres, onApplyGenreEdit,
+  onSaveTag, onRemoveTags, onApplyTagEdit, onReset,
 }: Props) {
   const theme = themeOf('more')
   const [view, setView] = useState<View>('menu')
@@ -85,7 +88,8 @@ export default function MorePage({
             withIcon
             accent={theme.accent}
             onSave={onSaveGenre}
-            onRemove={onRemoveGenre}
+            onRemove={onRemoveGenres}
+            onApplyEdit={onApplyGenreEdit}
           />
         </SubPage>
       )}
@@ -100,7 +104,8 @@ export default function MorePage({
             prefix="#"
             accent={theme.accent}
             onSave={onSaveTag}
-            onRemove={onRemoveTag}
+            onRemove={onRemoveTags}
+            onApplyEdit={onApplyTagEdit}
           />
         </SubPage>
       )}
