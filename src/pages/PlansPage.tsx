@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Genre, GoalRow, PlanItem, PlanKind, Tag, Wallet } from '../types'
-import DetailModal, { DetailBlock, DetailRow } from '../components/DetailModal'
+import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
 import { GenreDot, GenreSelect, TagList, TagPicker } from '../components/Pickers'
 import EditableList, { EditToolbar, ReorderButton, type EditRow } from '../components/EditableList'
@@ -198,8 +198,9 @@ export default function PlansPage({
     })
   }
 
+  /** true を返すと詳細表示に戻る。新規はそのまま閉じて一覧へ */
   function saveEdit() {
-    if (!editing) return
+    if (!editing) return false
     const error = firstError(
       required(editing.name, '予定名'),
       notNegative(editing.estimatedCost, '金額'),
@@ -208,10 +209,12 @@ export default function PlansPage({
         ? inRange(editing.dayOfMonth, 1, 31, '引き落とし日')()
         : null,
     )
-    if (error) { setEditError(error); return }
+    if (error) { setEditError(error); return false }
     onSavePlan({ ...editing, name: editing.name.trim() })
-    setEditing(null)
     setEditError('')
+    if (editing.id === null) { setEditing(null); return false }
+    setEditing({ ...editing, name: editing.name.trim() })
+    return true
   }
 
   /** 行の中身。並び替え中は右側の金額を隠してハンドルの場所を空ける */
@@ -400,10 +403,11 @@ export default function PlansPage({
           namePlaceholder="例: ライブ遠征費"
           onClose={() => { setEditing(null); setEditError('') }}
           onSave={saveEdit}
+          startInEdit={editing.id === null}
           error={editError}
           onDelete={editing.id ? () => setDeleteTarget({ id: editing.id!, name: editing.name }) : undefined}
         >
-          <DetailRow icon="🔁" label="種類">
+          <DetailRow icon="🔁" label="種類" value={<ReadValue>{editing.kind === 'once' ? '未定' : '毎月'}</ReadValue>}>
             <div className="type-toggle">
               <button
                 className={editing.kind !== 'once' ? 'btn-sub' : ''}
@@ -416,7 +420,11 @@ export default function PlansPage({
             </div>
           </DetailRow>
 
-          <DetailRow icon="💰" label={editing.kind === 'once' ? '予測金額' : '金額'}>
+          <DetailRow
+            icon="💰"
+            label={editing.kind === 'once' ? '予測金額' : '金額'}
+            value={<ReadValue>{yen(editing.estimatedCost)}</ReadValue>}
+          >
             <input
               type="number"
               value={editing.estimatedCost || ''}
@@ -428,7 +436,15 @@ export default function PlansPage({
 
           {editing.kind === 'monthly' && (
             <>
-              <DetailRow icon="📅" label="引き落とし日">
+              <DetailRow
+                icon="📅"
+                label="引き落とし日"
+                value={
+                  <ReadValue muted={editing.dayOfMonth === 0}>
+                    {editing.dayOfMonth > 0 ? `毎月${editing.dayOfMonth}日` : '未設定'}
+                  </ReadValue>
+                }
+              >
                 <input
                   type="number"
                   value={editing.dayOfMonth || ''}
@@ -438,7 +454,15 @@ export default function PlansPage({
                   max={31}
                 />
               </DetailRow>
-              <DetailRow icon="💳" label="口座">
+              <DetailRow
+                icon="💳"
+                label="口座"
+                value={
+                  <ReadValue muted={!editing.walletId}>
+                    {wallets.find(w => w.id === editing.walletId)?.name ?? '未設定'}
+                  </ReadValue>
+                }
+              >
                 <select value={editing.walletId} onChange={e => setEditing({ ...editing, walletId: e.target.value })}>
                   <option value="">未設定</option>
                   {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
@@ -447,15 +471,33 @@ export default function PlansPage({
             </>
           )}
 
-          <DetailRow icon="💙" label="ジャンル">
+          <DetailRow
+            icon="💙"
+            label="ジャンル"
+            value={
+              <ReadValue muted={!editGenre}>
+                {editGenre ? `${editGenre.icon} ${editGenre.name}` : '未設定'}
+              </ReadValue>
+            }
+          >
             <GenreSelect genres={genres} value={editing.genreId} onChange={v => setEditing({ ...editing, genreId: v })} />
           </DetailRow>
 
-          <DetailBlock icon="🏷" label="タグ">
+          <DetailBlock
+            icon="🏷"
+            label="タグ"
+            value={editing.tagIds.length > 0
+              ? <TagList tags={tags} ids={editing.tagIds} />
+              : <span className="summary">なし</span>}
+          >
             <TagPicker tags={tags} value={editing.tagIds} onChange={ids => setEditing({ ...editing, tagIds: ids })} />
           </DetailBlock>
 
-          <DetailBlock icon="📝" label="メモ">
+          <DetailBlock
+            icon="📝"
+            label="メモ"
+            value={<p className={editing.memo ? 'detail-memo' : 'summary'}>{editing.memo || 'なし'}</p>}
+          >
             <textarea
               value={editing.memo}
               onChange={e => setEditing({ ...editing, memo: e.target.value })}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ActiveTimer, Genre, GoalDraft, GoalRow, SavingsEvent, Task, TaskRepeat } from '../types'
-import DetailModal, { DetailBlock, DetailRow } from '../components/DetailModal'
+import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
 import { GenreDot, GenreSelect } from '../components/Pickers'
 import EditableList, { EditToolbar, ReorderButton, type EditRow } from '../components/EditableList'
@@ -151,17 +151,20 @@ export default function SavingsPage({
     })
   }
 
+  /** true を返すと詳細表示に戻る。新規はそのまま閉じて一覧へ */
   function saveTask() {
-    if (!draft) return
+    if (!draft) return false
     const error = firstError(
       required(draft.name, 'タスク名'),
       notNegative(draft.bonusAmount, 'つもり貯金額'),
       () => draft.useTimer && draft.timerMinutes < 1 ? 'タイマーの時間は1分以上で入力してください' : null,
     )
-    if (error) { setTaskError(error); return }
+    if (error) { setTaskError(error); return false }
     onSaveTask({ ...draft, name: draft.name.trim() })
     setTaskError('')
-    setDraft(null)
+    if (draft.id === null) { setDraft(null); return false }
+    setDraft({ ...draft, name: draft.name.trim() })
+    return true
   }
 
   function startTimer(t: Task) {
@@ -434,33 +437,8 @@ export default function SavingsPage({
               </div>
             )}
 
-            <div className="section-header"><h3>最近の記録</h3></div>
-            {savingsEvents.length === 0 ? (
-              <p className="empty-hint">タスクを達成すると貯まります</p>
-            ) : (
-              <ul className="item-list">
-                {savingsEvents.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20).map(ev => (
-                  <li key={ev.id}>
-                    <div className="row-card" style={{ cursor: 'default' }}>
-                      <GenreDot genres={genres} genreId="" fallback={ev.amount < 0 ? '✂️' : '🐷'} />
-                      <span className="row-main">
-                        <span className="row-title">{ev.label}</span>
-                        <span className="row-sub">{ev.date}</span>
-                      </span>
-                      <span
-                        className="row-amount"
-                        style={{ color: ev.amount < 0 ? '#e53e3e' : theme.accent }}
-                      >
-                        {ev.amount < 0 ? '−' : '+'}¥{Math.abs(ev.amount).toLocaleString()}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-
             <p className="summary" style={{ textAlign: 'center', padding: '1rem 0' }}>
-              切り崩しは「予定 &gt; 計算」タブから行えます
+              切り崩しは「予定 &gt; 計算」タブから、貯めた記録の一覧は「分析 &gt; 貯金履歴」から見られます
             </p>
           </>
         )}
@@ -475,10 +453,15 @@ export default function SavingsPage({
           namePlaceholder="例: 部屋の掃除"
           onClose={() => { setDraft(null); setTaskError('') }}
           onSave={saveTask}
+          startInEdit={draft.id === null}
           error={taskError}
           onDelete={draft.id ? () => setDeleteTarget({ id: draft.id!, name: draft.name }) : undefined}
         >
-          <DetailRow icon="🔁" label="繰り返し">
+          <DetailRow
+            icon="🔁"
+            label="繰り返し"
+            value={<ReadValue>{draft.repeat === 'once' ? '一度きり' : '毎日'}</ReadValue>}
+          >
             <div className="type-toggle">
               <button
                 className={draft.repeat !== 'once' ? 'btn-sub' : ''}
@@ -491,7 +474,7 @@ export default function SavingsPage({
             </div>
           </DetailRow>
 
-          <DetailRow icon="💰" label="つもり貯金額">
+          <DetailRow icon="💰" label="つもり貯金額" value={<ReadValue>{yen(draft.bonusAmount)}</ReadValue>}>
             <input
               type="number"
               value={draft.bonusAmount || ''}
@@ -501,7 +484,15 @@ export default function SavingsPage({
             />
           </DetailRow>
 
-          <DetailRow icon="⏱" label="タイマー">
+          <DetailRow
+            icon="⏱"
+            label="タイマー"
+            value={
+              <ReadValue muted={!draft.useTimer}>
+                {draft.useTimer ? `${draft.timerMinutes}分` : 'なし'}
+              </ReadValue>
+            }
+          >
             <div className="type-toggle">
               <button
                 className={draft.useTimer ? 'btn-sub' : ''}
@@ -515,7 +506,7 @@ export default function SavingsPage({
           </DetailRow>
 
           {draft.useTimer && (
-            <DetailRow icon="🕒" label="時間（分）">
+            <DetailRow icon="🕒" label="時間（分）" value={null}>
               <input
                 type="number"
                 value={draft.timerMinutes || ''}
@@ -525,11 +516,29 @@ export default function SavingsPage({
             </DetailRow>
           )}
 
-          <DetailRow icon="💙" label="ジャンル">
+          <DetailRow
+            icon="💙"
+            label="ジャンル"
+            value={
+              <ReadValue muted={!draftGenre}>
+                {draftGenre ? `${draftGenre.icon} ${draftGenre.name}` : '未設定'}
+              </ReadValue>
+            }
+          >
             <GenreSelect genres={genres} value={draft.genreId} onChange={v => setDraft({ ...draft, genreId: v })} />
           </DetailRow>
 
-          <DetailRow icon="🎯" label="貯金先">
+          <DetailRow
+            icon="🎯"
+            label="貯金先"
+            value={
+              <ReadValue muted={!draft.goalId}>
+                {goalRows.find(g => g.id === draft.goalId && g.id)
+                  ? `${goalRows.find(g => g.id === draft.goalId)!.icon} ${goalRows.find(g => g.id === draft.goalId)!.name}`
+                  : '指定なし'}
+              </ReadValue>
+            }
+          >
             <select value={draft.goalId} onChange={e => setDraft({ ...draft, goalId: e.target.value })}>
               <option value="">指定なし</option>
               {goalRows.filter(g => g.id).map(g => (
@@ -554,11 +563,14 @@ export default function SavingsPage({
               required(goalDraft.name, '目標の名前'),
               notNegative(goalDraft.targetAmount, '目標額'),
             )
-            if (error) { setGoalError(error); return }
+            if (error) { setGoalError(error); return false }
             onSaveGoal({ ...goalDraft, name: goalDraft.name.trim() })
-            setGoalDraft(null)
             setGoalError('')
+            if (goalDraft.id === null) { setGoalDraft(null); return false }
+            setGoalDraft({ ...goalDraft, name: goalDraft.name.trim() })
+            return true
           }}
+          startInEdit={goalDraft.id === null}
           onDelete={goalDraft.id
             ? () => {
               const row = goalRows.find(g => g.id === goalDraft.id)
@@ -566,7 +578,32 @@ export default function SavingsPage({
             }
             : undefined}
         >
-          <DetailRow icon="🎯" label="目標額">
+          {goalDraft.id && (() => {
+            const row = goalRows.find(g => g.id === goalDraft.id)
+            if (!row) return null
+            return (
+              <>
+                <DetailRow icon="🐷" label="現在の貯金額" value={<ReadValue>{yen(row.kept)}</ReadValue>}>
+                  <span className="detail-value">{yen(row.kept)}</span>
+                </DetailRow>
+                {row.withdrawn > 0 && (
+                  <DetailRow icon="✂️" label="切り崩し済み" value={<ReadValue>{yen(row.withdrawn)}</ReadValue>}>
+                    <span className="detail-value">{yen(row.withdrawn)}</span>
+                  </DetailRow>
+                )}
+              </>
+            )
+          })()}
+
+          <DetailRow
+            icon="🎯"
+            label="目標額"
+            value={
+              <ReadValue muted={goalDraft.targetAmount === 0}>
+                {goalDraft.targetAmount > 0 ? yen(goalDraft.targetAmount) : '上限なし'}
+              </ReadValue>
+            }
+          >
             <input
               type="number"
               value={goalDraft.targetAmount || ''}
@@ -576,33 +613,23 @@ export default function SavingsPage({
             />
           </DetailRow>
 
-          {goalDraft.id && (() => {
-            const row = goalRows.find(g => g.id === goalDraft.id)
-            if (!row) return null
-            return (
-              <>
-                <DetailRow icon="🐷" label="貯まっている額">
-                  <span className="detail-value">{yen(row.kept)}</span>
-                </DetailRow>
-                {row.withdrawn > 0 && (
-                  <DetailRow icon="✂️" label="切り崩し済み">
-                    <span className="detail-value">{yen(row.withdrawn)}</span>
-                  </DetailRow>
-                )}
-              </>
-            )
-          })()}
-
-          <DetailBlock icon="😊" label="アイコン">
+          <DetailBlock
+            icon="😊"
+            label="見た目"
+            value={
+              <span className="genre-dot" style={{ background: `${goalDraft.color}33`, width: 40, height: 40, fontSize: 20 }}>
+                {goalDraft.icon || '🐷'}
+              </span>
+            }
+          >
             <IconSwatches
               value={goalDraft.icon}
               onChange={icon => setGoalDraft({ ...goalDraft, icon })}
               accent={theme.accent}
             />
-          </DetailBlock>
-
-          <DetailBlock icon="🎨" label="色">
-            <ColorSwatches value={goalDraft.color} onChange={color => setGoalDraft({ ...goalDraft, color })} />
+            <div style={{ marginTop: '0.75rem' }}>
+              <ColorSwatches value={goalDraft.color} onChange={color => setGoalDraft({ ...goalDraft, color })} />
+            </div>
           </DetailBlock>
         </DetailModal>
       )}

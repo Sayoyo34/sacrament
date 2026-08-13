@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Genre, LedgerEntry, Tag, Wallet } from '../types'
-import DetailModal, { DetailBlock, DetailRow } from '../components/DetailModal'
+import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
 import { GenreDot, GenreSelect, TagFilter, TagList, TagPicker } from '../components/Pickers'
 import TopTabs from '../components/TopTabs'
@@ -104,18 +104,21 @@ export default function LedgerPage({
     })
   }
 
+  /** true を返すと詳細表示に戻る。新規はそのまま閉じて一覧へ */
   function saveEntry() {
-    if (!draft) return
+    if (!draft) return false
     const error = firstError(
       required(draft.label, '項目名'),
       selected(draft.walletId, '口座'),
       positive(draft.amount, '金額'),
       required(draft.date, '日付'),
     )
-    if (error) { setEntryError(error); return }
+    if (error) { setEntryError(error); return false }
     onSaveEntry({ ...draft, label: draft.label.trim() })
-    setDraft(null)
     setEntryError('')
+    if (draft.id === null) { setDraft(null); return false }
+    setDraft({ ...draft, label: draft.label.trim() })
+    return true
   }
 
   function openNewWallet() {
@@ -124,12 +127,14 @@ export default function LedgerPage({
   }
 
   function saveWallet() {
-    if (!walletDraft) return
+    if (!walletDraft) return false
     const error = firstError(required(walletDraft.name, '口座名'))
-    if (error) { setWalletError(error); return }
+    if (error) { setWalletError(error); return false }
     onSaveWallet({ ...walletDraft, name: walletDraft.name.trim() })
-    setWalletDraft(null)
     setWalletError('')
+    if (walletDraft.id === null) { setWalletDraft(null); return false }
+    setWalletDraft({ ...walletDraft, name: walletDraft.name.trim() })
+    return true
   }
 
   const draftGenre = genres.find(g => g.id === draft?.genreId)
@@ -248,10 +253,11 @@ export default function LedgerPage({
           namePlaceholder="例: 新幹線"
           onClose={() => { setDraft(null); setEntryError('') }}
           onSave={saveEntry}
+          startInEdit={draft.id === null}
           error={entryError}
           onDelete={draft.id ? () => setDeleteTarget({ kind: 'entry', id: draft.id!, name: draft.label }) : undefined}
         >
-          <DetailRow icon="🔁" label="種別">
+          <DetailRow icon="🔁" label="種別" value={<ReadValue>{draft.type === 'expense' ? '支出' : '収入'}</ReadValue>}>
             <div className="type-toggle">
               <button
                 className={draft.type !== 'expense' ? 'btn-sub' : ''}
@@ -264,7 +270,15 @@ export default function LedgerPage({
             </div>
           </DetailRow>
 
-          <DetailRow icon="💰" label="金額">
+          <DetailRow
+            icon="💰"
+            label="金額"
+            value={
+              <ReadValue>
+                {draft.type === 'expense' ? '−' : '+'}{yen(draft.amount)}
+              </ReadValue>
+            }
+          >
             <input
               type="number"
               value={draft.amount || ''}
@@ -274,25 +288,47 @@ export default function LedgerPage({
             />
           </DetailRow>
 
-          <DetailRow icon="📅" label="日付">
+          <DetailRow icon="📅" label="日付" value={<ReadValue>{draft.date}</ReadValue>}>
             <input type="date" value={draft.date} onChange={e => setDraft({ ...draft, date: e.target.value })} />
           </DetailRow>
 
-          <DetailRow icon="💳" label="口座">
+          <DetailRow
+            icon="💳"
+            label="口座"
+            value={<ReadValue>{wallets.find(w => w.id === draft.walletId)?.name ?? '未設定'}</ReadValue>}
+          >
             <select value={draft.walletId} onChange={e => setDraft({ ...draft, walletId: e.target.value })}>
               {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
           </DetailRow>
 
-          <DetailRow icon="💙" label="ジャンル">
+          <DetailRow
+            icon="💙"
+            label="ジャンル"
+            value={
+              <ReadValue muted={!draftGenre}>
+                {draftGenre ? `${draftGenre.icon} ${draftGenre.name}` : '未設定'}
+              </ReadValue>
+            }
+          >
             <GenreSelect genres={genres} value={draft.genreId} onChange={v => setDraft({ ...draft, genreId: v })} />
           </DetailRow>
 
-          <DetailBlock icon="🏷" label="タグ">
+          <DetailBlock
+            icon="🏷"
+            label="タグ"
+            value={draft.tagIds.length > 0
+              ? <TagList tags={tags} ids={draft.tagIds} />
+              : <span className="summary">なし</span>}
+          >
             <TagPicker tags={tags} value={draft.tagIds} onChange={ids => setDraft({ ...draft, tagIds: ids })} />
           </DetailBlock>
 
-          <DetailBlock icon="📝" label="メモ">
+          <DetailBlock
+            icon="📝"
+            label="メモ"
+            value={<p className={draft.memo ? 'detail-memo' : 'summary'}>{draft.memo || 'なし'}</p>}
+          >
             <textarea
               value={draft.memo}
               onChange={e => setDraft({ ...draft, memo: e.target.value })}
@@ -312,10 +348,11 @@ export default function LedgerPage({
           namePlaceholder="例: PayPay"
           onClose={() => { setWalletDraft(null); setWalletError('') }}
           onSave={saveWallet}
+          startInEdit={walletDraft.id === null}
           error={walletError}
           onDelete={walletDraft.id ? () => setDeleteTarget({ kind: 'wallet', id: walletDraft.id!, name: walletDraft.name }) : undefined}
         >
-          <DetailRow icon="💰" label="残高">
+          <DetailRow icon="💰" label="残高" value={<ReadValue>{yen(walletDraft.balance)}</ReadValue>}>
             <input
               type="number"
               value={walletDraft.balance || ''}
@@ -323,9 +360,9 @@ export default function LedgerPage({
               placeholder="0"
             />
           </DetailRow>
-          <p className="summary" style={{ padding: '0.5rem 0.25rem' }}>
-            現在の残高 {yen(walletDraft.balance)}。取引を記録すると自動で増減します。
-          </p>
+          <DetailRow icon="💡" label="" value={null}>
+            <span className="summary">取引を記録すると自動で増減します</span>
+          </DetailRow>
         </DetailModal>
       )}
 

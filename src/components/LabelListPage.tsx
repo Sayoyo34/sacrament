@@ -49,15 +49,18 @@ export default function LabelListPage({
     setDraft({ id: null, name: '', color: PALETTE[0], icon: withIcon ? ICONS[0] : '' })
   }
 
+  /** true を返すと詳細表示に戻る。新規はそのまま閉じて一覧へ */
   function save() {
-    if (!draft) return
+    if (!draft) return false
     const name = draft.name.trim().replace(/^#/, '')
     const others = items.filter(i => i.id !== draft.id).map(i => i.name)
     const err = firstError(required(name, '名前'), notDuplicated(name, others, kind))
-    if (err) { setError(err); return }
+    if (err) { setError(err); return false }
     onSave({ ...draft, name })
-    setDraft(null)
     setError('')
+    if (draft.id === null) { setDraft(null); return false }
+    setDraft({ ...draft, name })
+    return true
   }
 
   function commit() {
@@ -150,24 +153,32 @@ export default function LabelListPage({
           namePlaceholder={withIcon ? '例: 遠征費' : '例: アイナナ'}
           onClose={() => { setDraft(null); setError('') }}
           onSave={save}
+          startInEdit={draft.id === null}
           error={error}
           onDelete={draft.id ? () => setDeleteTarget(draft.id) : undefined}
         >
-          {withIcon && (
-            <DetailBlock icon="😊" label="アイコン">
+          <DetailBlock
+            icon="😊"
+            label="見た目"
+            value={
+              <span className="genre-dot" style={{ background: `${draft.color}33`, width: 40, height: 40, fontSize: 20 }}>
+                {withIcon ? (draft.icon || '📦') : ''}
+              </span>
+            }
+          >
+            {withIcon && (
               <IconSwatches
                 value={draft.icon}
                 onChange={icon => setDraft({ ...draft, icon })}
                 accent={accent}
               />
-            </DetailBlock>
-          )}
-
-          <DetailBlock icon="🎨" label="色">
-            <ColorSwatches value={draft.color} onChange={color => setDraft({ ...draft, color })} />
+            )}
+            <div style={{ marginTop: withIcon ? '0.75rem' : 0 }}>
+              <ColorSwatches value={draft.color} onChange={color => setDraft({ ...draft, color })} />
+            </div>
           </DetailBlock>
 
-          <DetailRow icon="👀" label="表示例">
+          <DetailRow icon="👀" label="表示例" value={null}>
             <span className="detail-value" style={{ color: draft.color, fontFamily: 'inherit' }}>
               {prefix}{draft.name || '（名前未入力）'}
             </span>

@@ -100,6 +100,12 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
     .filter(e => monthOf(e.date) === month && e.amount < 0)
     .reduce((s, e) => s + Math.abs(e.amount), 0)
 
+  // その月の貯金の記録。切り崩しも含めて新しい順に並べる
+  const monthEvents = savingsEvents
+    .filter(e => monthOf(e.date) === month)
+    .slice()
+    .sort((a, b) => b.date.localeCompare(a.date))
+
   // タスク別の貢献額（その月に貯めた分）
   const byTask = new Map<string, number>()
   savingsEvents
@@ -305,6 +311,36 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
             <p className="summary" style={{ textAlign: 'center', padding: '0.5rem 0 1rem' }}>
               {month === thisMonth() ? '今月は本日までの日数で計算しています' : `${monthLabel(month)}の日数で計算しています`}
             </p>
+
+            <div className="section-header"><h3>{monthLabel(month)}の記録</h3></div>
+            {monthEvents.length === 0 ? (
+              <p className="empty-hint">この月の記録がありません</p>
+            ) : (
+              <ul className="item-list">
+                {monthEvents.map(ev => (
+                  <li key={ev.id}>
+                    <div className="row-card" style={{ cursor: 'default' }}>
+                      <span
+                        className="genre-dot"
+                        style={{ background: `${ev.amount < 0 ? '#e53e3e' : theme.accent}33`, width: 34, height: 34, fontSize: 17 }}
+                      >
+                        {ev.amount < 0 ? '✂️' : '🐷'}
+                      </span>
+                      <span className="row-main">
+                        <span className="row-title">{ev.label}</span>
+                        <span className="row-sub">{ev.date}</span>
+                      </span>
+                      <span
+                        className="row-amount"
+                        style={{ color: ev.amount < 0 ? '#e53e3e' : theme.accent }}
+                      >
+                        {ev.amount < 0 ? '−' : '+'}¥{Math.abs(ev.amount).toLocaleString()}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </>
         )}
       </div>
