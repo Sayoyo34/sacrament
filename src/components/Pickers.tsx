@@ -1,5 +1,18 @@
 import type { Genre, Tag } from '../types'
 
+/**
+ * 推しカラーを読みやすい濃さに揃える。
+ * 原色そのままの文字色は白地で目が痛く、黄色系だとほぼ読めないため、
+ * 淡い地色＋暗めの文字という組み合わせに正規化する（ジャンルの丸と同じ作法）。
+ */
+function tagTint(color: string) {
+  return {
+    background: `color-mix(in srgb, ${color} 16%, #fff)`,
+    // 52% は色味を残しつつ、パレット中いちばん明るい黄でもコントラスト比 5:1 を確保できる下限
+    color: `color-mix(in srgb, ${color} 52%, #000)`,
+  }
+}
+
 export function GenreSelect({ genres, value, onChange }: {
   genres: Genre[]
   value: string
@@ -32,7 +45,7 @@ export function TagPicker({ tags, value, onChange }: {
           <button
             key={t.id}
             className={`tag-chip${on ? ' on' : ''}`}
-            style={on ? { background: t.color, borderColor: t.color } : { color: t.color, borderColor: t.color }}
+            style={on ? { background: t.color, borderColor: t.color } : tagTint(t.color)}
             onClick={() => onChange(on ? value.filter(id => id !== t.id) : [...value, t.id])}
           >
             #{t.name}
@@ -63,7 +76,7 @@ export function TagFilter({ tags, selected, onChange }: {
             <button
               key={t.id}
               className={`tag-chip${on ? ' on' : ''}`}
-              style={on ? { background: t.color, borderColor: t.color } : { color: t.color, borderColor: t.color }}
+              style={on ? { background: t.color, borderColor: t.color } : tagTint(t.color)}
               onClick={() => onChange(on ? selected.filter(id => id !== t.id) : [...selected, t.id])}
             >
               #{t.name}
@@ -91,13 +104,18 @@ export function TagList({ tags, ids }: { tags: Tag[]; ids: string[] }) {
       {ids.map(id => {
         const t = tags.find(x => x.id === id)
         if (!t) return null
-        return <span key={id} className="tag-mini" style={{ color: t.color }}>#{t.name}</span>
+        return <span key={id} className="tag-mini" style={tagTint(t.color)}>#{t.name}</span>
       })}
     </span>
   )
 }
 
-/** ジャンル色の丸アイコン。項目一覧の左端に置く */
+/**
+ * ジャンルの丸アイコン。項目一覧の左端に置く。
+ * 一覧では絵文字だけで見分けられるので、地色は無彩色にしてある。
+ * ジャンル色を色として使うのは、それが凡例＝データになる分析画面だけ。
+ * 一覧で色を持つのはタグ（推しカラー）だけ、という住み分け。
+ */
 export function GenreDot({ genres, genreId, fallback = '📦', size = 34 }: {
   genres: Genre[]
   genreId: string
@@ -108,12 +126,7 @@ export function GenreDot({ genres, genreId, fallback = '📦', size = 34 }: {
   return (
     <span
       className="genre-dot"
-      style={{
-        background: g ? `${g.color}33` : 'var(--code-bg)',
-        width: size,
-        height: size,
-        fontSize: size * 0.5,
-      }}
+      style={{ background: 'var(--code-bg)', width: size, height: size, fontSize: size * 0.5 }}
     >
       {g?.icon ?? fallback}
     </span>

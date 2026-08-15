@@ -129,7 +129,8 @@
   border-radius: 18px;
   padding: 1.1rem 1.25rem 1.25rem;
   margin-bottom: 1rem;
-  background: linear-gradient(115deg, #fbcfe4 0%, #e6d3f5 55%, #cfd4f7 100%);
+  /* テーマ色（紫）の範囲だけで振る。ピンク寄りの端を残すとジャンル色と競合する */
+  background: linear-gradient(115deg, #e8dffa 0%, #d9cff5 55%, #cbd1f4 100%);
   color: #1a1a2e;
 }
 
@@ -146,6 +147,347 @@
   letter-spacing: -1px;
   line-height: 1.1;
 }
+
+.hero-number.hero-negative { color: #b3261e; }
+
+/* ── 計算タブのサマリー（常時表示・内訳もこの中で開く） ── */
+.hero-top {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.15rem;
+}
+
+.hero-top .hero-label { margin-bottom: 0; }
+
+.hero-delta {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(26, 26, 46, 0.72);
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+}
+
+.hero-toggle {
+  margin-left: auto;
+  background: rgba(255, 255, 255, 0.55);
+  color: #1a1a2e;
+  font-size: 0.68rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.22rem 0.6rem;
+}
+
+.hero-toggle:hover { background: rgba(255, 255, 255, 0.8); opacity: 1; }
+
+.hero-bar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  margin: 0.6rem 0 0.55rem;
+}
+
+.hero-bar-seg {
+  display: block;
+  border-radius: 4px;
+  min-width: 3px;
+}
+
+.hero-bar-rest { background: rgba(255, 255, 255, 0.85); }
+
+.hero-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+}
+
+.hero-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  font-size: 0.66rem;
+  opacity: 0.85;
+}
+
+.hero-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hero-note {
+  font-size: 0.63rem;
+  opacity: 0.6;
+  line-height: 1.5;
+  margin-top: 0.35rem;
+}
+
+.hero-breakdown {
+  background: rgba(255, 255, 255, 0.62);
+  border-radius: 12px;
+  padding: 0.7rem 0.8rem;
+}
+
+.hero-calc {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.74rem;
+  padding: 0.16rem 0;
+}
+
+.hero-calc > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  opacity: 0.85;
+}
+
+.hero-calc > span:last-child {
+  font-family: var(--mono);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.hero-calc-total {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.hero-calc-total > span:first-child { opacity: 1; }
+.hero-calc-total > span:last-child { font-size: 0.98rem; }
+
+.hero-rule {
+  height: 1px;
+  background: rgba(26, 26, 46, 0.18);
+  margin: 0.4rem 0;
+}
+
+.hero-breakdown .hero-note { opacity: 0.65; }
+
+/* ── その場で開く引く／戻すパネル ───────── */
+.row-card.expanded {
+  margin-bottom: 0;
+  border-radius: 12px 12px 0 0;
+  border: 1.5px solid;
+  border-bottom: none;
+  box-shadow: none;
+  opacity: 1;
+}
+
+.row-card.group-open {
+  margin-bottom: 0.35rem;
+}
+
+.inline-panel {
+  background: var(--bg);
+  border: 1.5px solid;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  padding: 0.75rem 0.85rem 0.85rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.inline-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.6rem;
+}
+
+.inline-modes { display: flex; gap: 0.4rem; }
+.inline-modes button { flex: 1; padding: 0.45rem; }
+
+.inline-amount {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.inline-amount-label {
+  font-size: 0.72rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.inline-input {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.15rem;
+  background: var(--code-bg);
+  border: 1.5px solid;
+  border-radius: 10px;
+  padding: 0.4rem 0.7rem;
+}
+
+.inline-input input {
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: right;
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-family: var(--mono);
+}
+
+.inline-input input:focus { border: none; }
+
+.inline-unit { font-size: 0.7rem; color: var(--text); }
+
+.inline-chips { display: flex; gap: 0.35rem; }
+
+.inline-chip {
+  flex: 1;
+  background: var(--code-bg);
+  color: var(--text);
+  border: 1.5px solid transparent;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 0.4rem 0.2rem;
+}
+
+.inline-chip.on { background: var(--bg); }
+
+.inline-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: var(--code-bg);
+  border-radius: 10px;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.72rem;
+  color: var(--text);
+}
+
+.inline-preview strong {
+  font-size: 1rem;
+  font-family: var(--mono);
+  white-space: nowrap;
+}
+
+.inline-actions { display: flex; gap: 0.5rem; }
+.inline-actions button { flex: 1; padding: 0.6rem; font-size: 0.85rem; }
+.inline-actions button:last-child { flex: 2; }
+
+.inline-panel .form-error { margin: 0; }
+
+/* 畳んだグループを開いた時の子リスト */
+.sub-list {
+  margin: 0 0 0.5rem 0.75rem;
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--border);
+}
+
+.sub-list .row-card { box-shadow: none; background: var(--code-bg); }
+
+.section-hint { font-size: 0.7rem; color: var(--text); }
+
+.header-actions { display: flex; gap: 0.4rem; }
+
+/* 行き先未定のお金。目標と対等に見えないよう、進捗も出さず点線で囲う */
+.inbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  background: var(--code-bg);
+  border: 1.5px dashed var(--border);
+  border-radius: 12px;
+  padding: 0.7rem 0.9rem;
+  margin-bottom: 0.25rem;
+  text-align: left;
+  color: var(--text-h);
+  font-weight: 400;
+}
+
+.inbox-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.inbox-title { font-size: 0.85rem; font-weight: 700; }
+.inbox-note { font-size: 0.7rem; color: var(--text); }
+.inbox-amount { font-size: 0.95rem; font-weight: 700; font-family: var(--mono); white-space: nowrap; }
+
+/* 目標の行の右端に置く設定ボタン。主タップは「貯める」に譲る */
+.row-gear {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--code-bg);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+/* 貯めるパネルの中に出す直近の記録 */
+.inline-recent {
+  border-top: 1px solid var(--border);
+  padding-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.inline-recent-label { font-size: 0.7rem; color: var(--text); font-weight: 600; }
+
+.inline-recent-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.74rem;
+}
+
+.inline-recent-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inline-recent-date { color: var(--text); font-size: 0.68rem; white-space: nowrap; }
+.inline-recent-amount { font-family: var(--mono); font-weight: 700; white-space: nowrap; }
+.inline-recent-lock { font-size: 0.66rem; color: var(--text); white-space: nowrap; }
+
+/* 振り分けシートの記録リスト */
+.sort-list { display: flex; flex-direction: column; gap: 0.4rem; max-height: 40vh; overflow-y: auto; }
+
+.sort-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  background: var(--code-bg);
+  border: 1.5px solid transparent;
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  color: var(--text-h);
+  font-weight: 400;
+}
+
+.sort-row.on { background: var(--bg); }
+
+.sort-check {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: #fff;
+}
+
+.sort-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sort-name { font-size: 0.8rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sort-date { font-size: 0.66rem; color: var(--text); }
+.sort-amount { font-size: 0.85rem; font-weight: 700; font-family: var(--mono); white-space: nowrap; }
 
 /* ── Cards ────────────────────────────── */
 .card {
@@ -458,13 +800,20 @@
   font-size: 0.78rem;
   font-weight: 600;
   background: transparent;
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
 }
 
 .tag-chip.on { color: #fff; }
 
-.tag-list { display: inline-flex; gap: 0.35rem; flex-wrap: wrap; }
-.tag-mini { font-size: 0.7rem; font-weight: 600; }
+.tag-list { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; }
+
+/* 推しカラーは淡い地色で持たせる。原色の文字にしない（tagTint と対） */
+.tag-mini {
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 0.05rem 0.45rem;
+}
 
 .tag-filter { margin-bottom: 0.75rem; }
 

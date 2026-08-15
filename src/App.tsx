@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import type { Genre, Goal, GoalDraft, GoalRow, LedgerEntry, PlanItem, SavingsEvent, Tag, Task, Wallet } from './types'
 import LedgerPage, { type EntryDraft, type WalletDraft } from './pages/LedgerPage'
 import PlansPage, { type PlanDraft } from './pages/PlansPage'
-import SavingsPage, { type TaskDraft } from './pages/SavingsPage'
+import SavingsPage, { type SavingsDraft, type TaskDraft } from './pages/SavingsPage'
 import AnalysisPage from './pages/AnalysisPage'
 import MorePage from './pages/MorePage'
 import BottomNav from './components/BottomNav'
@@ -186,6 +186,24 @@ export default function App() {
       const idx = prev.findIndex(e => e.taskId === id && e.date === removedDate)
       return idx === -1 ? prev : prev.filter((_, i) => i !== idx)
     })
+  }
+
+  // ── 手動の貯金（給料天引きなど、タスク以外で貯めた分） ──
+  /** タスク由来と同じ器に積む。taskId が空なのが手動で入れた印 */
+  function addSavings(d: SavingsDraft) {
+    setSavingsEvents(prev => [...prev, {
+      id: generateId(), date: d.date, amount: d.amount, taskId: '',
+      goalId: d.goalId, label: d.label.trim() || '手動で追加',
+    }])
+  }
+
+  function removeSavingsEvent(id: string) {
+    setSavingsEvents(prev => prev.filter(e => e.id !== id))
+  }
+
+  /** 行き先を決めずに貯めた分を、あとから目標へ振り分ける */
+  function assignSavings(eventIds: string[], goalId: string) {
+    setSavingsEvents(prev => prev.map(e => eventIds.includes(e.id) ? { ...e, goalId } : e))
   }
 
   // ── 貯金目標 ───────────────────────────
@@ -397,6 +415,9 @@ export default function App() {
             onSaveGoal={saveGoal}
             onRemoveGoals={removeGoals}
             onApplyGoalEdit={applyGoalEdit}
+            onAddSavings={addSavings}
+            onRemoveSavingsEvent={removeSavingsEvent}
+            onAssignSavings={assignSavings}
           />
         )}
         {page === 'plans' && (

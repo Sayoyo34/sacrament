@@ -3,13 +3,14 @@ import type { ActiveTimer, Genre, GoalDraft, GoalRow, SavingsEvent, Task, TaskRe
 import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
 import { GenreDot, GenreSelect } from '../components/Pickers'
+import InlineSave from '../components/InlineSave'
 import EditableList, { EditToolbar, ReorderButton, type EditRow } from '../components/EditableList'
 import { useEditSession } from '../useEditSession'
 import { ColorSwatches, IconSwatches } from '../components/Swatches'
 import TopTabs from '../components/TopTabs'
 import { themeOf } from '../theme'
 import { monthLabel, monthOf, recentDays, thisMonth, todayStr, yen } from '../utils'
-import { firstError, notNegative, required } from '../validation'
+import { firstError, notNegative, positive, required } from '../validation'
 
 type Tab = 'tasks' | 'goals'
 
@@ -22,6 +23,14 @@ interface TaskDraft {
   timerMinutes: number
   genreId: string
   goalId: string
+}
+
+/** タスクを介さずに貯金を足すときの入力内容（給料天引きなど） */
+interface SavingsDraft {
+  amount: number
+  goalId: string
+  date: string
+  label: string
 }
 
 interface Props {
@@ -39,6 +48,9 @@ interface Props {
   onSaveGoal: (draft: GoalDraft) => void
   onRemoveGoals: (ids: string[]) => void
   onApplyGoalEdit: (orderedIds: string[], removedIds: string[]) => void
+  onAddSavings: (draft: SavingsDraft) => void
+  onRemoveSavingsEvent: (id: string) => void
+  onAssignSavings: (eventIds: string[], goalId: string) => void
 }
 
 function fmt(seconds: number) {
@@ -51,11 +63,21 @@ export default function SavingsPage({
   tasks, savingsEvents, genres, goalRows, savingsEarned, savingsWithdrawn,
   onSaveTask, onRemoveTask, onApplyTaskEdit,
   onCompleteTask, onUncompleteTask, onSaveGoal, onRemoveGoals, onApplyGoalEdit,
+  onAddSavings, onRemoveSavingsEvent, onAssignSavings,
 }: Props) {
   const savingsKept = savingsEarned - savingsWithdrawn
   const theme = themeOf('savings')
   const [goalDraft, setGoalDraft] = useState<GoalDraft | null>(null)
   const [deleteGoal, setDeleteGoal] = useState<GoalRow | null>(null)
+  const [savingsDraft, setSavingsDraft] = useState<SavingsDraft | null>(null)
+  const [savingsError, setSavingsError] = useState('')
+  const [deleteEvent, setDeleteEvent] = useState<SavingsEvent | null>(null)
+  const [blockedEvent, setBlockedEvent] = useState<SavingsEvent | null>(null)
+  const [openGoalId, setOpenGoalId] = useState<string | null>(null)   // 貯めるパネルを開いている目標
+  const [sorting, setSorting] = useState(false)                        // 振り分けシート
+  const [sortPick, setSortPick] = useState<Set<string>>(new Set())
+  const [sortGoalId, setSortGoalId] = useState('')
+  const [sortError, setSortError] = useState('')
   const [taskError, setTaskError] = useState('')
   const [goalError, setGoalError] = useState('')
   const [reordering, setReordering] = useState<TaskRepeat | null>(null)
@@ -246,6 +268,79 @@ export default function SavingsPage({
   /** 「行き先なし」は並び替えも削除もできないので、実在する目標だけ扱う */
   const realGoals = goalRows.filter(g => g.id)
 
+  // ── 貯める・記録の後始末 ────────────────
+  /** 行き先を決めずに貯めた分。目標ではなく「仕分け待ち」として扱う */
+  const inbox = goalRows.find(g => g.id === '') ?? null
+  const inboxEvents = savingsEvents
+    .filter(e => e.goalId === '' && e.amount > 0)
+    .slice()
+    .sort((a, b) => b.date.localeCompare(a.date))
+
+  /** 目標ごとの直近の記録。パネルの中に出して、その場で取り消せるようにする */
+  function recentOf(goalId: string) {
+    return savingsEvents
+      .filter(e => e.goalId === goalId && e.amount > 0)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 3)
+  }
+
+  function openAddSavings() {
+    setSavingsError('')
+    setSavingsDraft({ amount: 0, goalId: '', date: todayStr(), label: '' })
+  }
+
+  function submitSavings() {
+    if (!savingsDraft) return
+    const error = firstError(positive(savingsDraft.amount, '金額'))
+    if (error) { setSavingsError(error); return }
+    onAddSavings(savingsDraft)
+    setSavingsDraft(null)
+    setSavingsError('')
+  }
+
+  /** 行タップでその目標に貯める。記録の名目は目標名にしておく */
+  function saveToGoal(g: GoalRow, amount: number) {
+    onAddSavings({ amount, goalId: g.id, date: todayStr(), label: g.name })
+  }
+
+  /** 消すと切り崩し済みの額を下回ってしまう記録は、残高がマイナスになるので消させない */
+  function requestDeleteEvent(e: SavingsEvent) {
+    const row = goalRows.find(g => g.id === e.goalId)
+    if (row && row.earned - e.amount < row.withdrawn) setBlockedEvent(e)
+    else setDeleteEvent(e)
+  }
+
+  function openSorting() {
+    setSortPick(new Set(inboxEvents.map(e => e.id)))
+    setSortGoalId(realGoals[0]?.id ?? '')
+    setSortError('')
+    setSorting(true)
+  }
+
+  function togglePick(id: string) {
+    setSortPick(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+    setSortError('')
+  }
+
+  const pickedTotal = inboxEvents.filter(e => sortPick.has(e.id)).reduce((s, e) => s + e.amount, 0)
+
+  function submitSorting() {
+    if (sortPick.size === 0) { setSortError('振り分ける記録を選んでください'); return }
+    if (!sortGoalId) { setSortError('行き先を選んでください'); return }
+    // 未定の分から切り崩し済みがあると、移しすぎたときに残高がマイナスになる
+    if (inbox && pickedTotal > inbox.kept) {
+      setSortError(`未定から切り崩した分があるため、${yen(inbox.kept)} までしか振り分けられません`)
+      return
+    }
+    onAssignSavings([...sortPick], sortGoalId)
+    setSorting(false)
+  }
+
   function goalBody(g: GoalRow) {
     const ratio = g.targetAmount > 0 ? Math.min(1, g.kept / g.targetAmount) : 0
     return (
@@ -369,10 +464,36 @@ export default function SavingsPage({
               <div className="calc-row"><span>{monthLabel(thisMonth())}に貯めた額</span><span>¥{monthSavings.toLocaleString()}</span></div>
             </div>
 
+            {inbox && inbox.kept > 0 && !goalSession.editing && (
+              <button className="inbox-row" onClick={openSorting}>
+                <span className="inbox-main">
+                  <span className="inbox-title">行き先が未定のお金</span>
+                  <span className="inbox-note">
+                    {realGoals.length > 0 ? '目標に振り分けられます' : 'まず目標を作りましょう'}
+                  </span>
+                </span>
+                <span className="inbox-amount">¥{inbox.kept.toLocaleString()}</span>
+                <span className="row-chevron">›</span>
+              </button>
+            )}
+
             <div className="section-header">
               <h3>目標 ({goalSession.editing ? goalSession.draft.length : realGoals.length})</h3>
-              {!goalSession.editing && realGoals.length > 1 && (
-                <ReorderButton onClick={() => goalSession.start(realGoals)} />
+              {!goalSession.editing && (
+                <div className="header-actions">
+                  {realGoals.length > 1 && <ReorderButton onClick={() => goalSession.start(realGoals)} />}
+                  <button
+                    className="reorder-open"
+                    aria-label="目標を追加"
+                    title="目標を追加"
+                    onClick={() => {
+                      setGoalError('')
+                      setGoalDraft({ id: null, name: '', icon: '🐷', color: '#f472b6', targetAmount: 0 })
+                    }}
+                  >
+                    ＋
+                  </button>
+                </div>
               )}
             </div>
 
@@ -395,27 +516,70 @@ export default function SavingsPage({
                 onToggle={goalSession.toggle}
                 onReorder={goalSession.reorder}
               />
-            ) : goalRows.length === 0 ? (
+            ) : realGoals.length === 0 ? (
               <p className="empty-hint">
-                貯金の行き先を作れます<br />+ボタンで追加できます
+                貯金の行き先を作れます<br />右上の＋から追加できます
               </p>
             ) : (
               <ul className="item-list">
-                {goalRows.map(g => {
-                  const unassigned = g.id === ''
+                {realGoals.map(g => {
+                  const open = openGoalId === g.id
                   return (
-                    <li key={g.id || '__none'}>
-                      <button
-                        className="row-card"
-                        style={unassigned ? { cursor: 'default' } : undefined}
-                        onClick={() => {
-                          if (unassigned) return
-                          setGoalError('')
-                          setGoalDraft({ id: g.id, name: g.name, icon: g.icon, color: g.color, targetAmount: g.targetAmount })
-                        }}
+                    <li key={g.id}>
+                      <div
+                        className={`row-card${open ? ' expanded' : ''}`}
+                        style={open ? { borderColor: theme.accent } : undefined}
                       >
-                        {goalBody(g)}
-                      </button>
+                        <button
+                          className="row-tap"
+                          onClick={() => setOpenGoalId(open ? null : g.id)}
+                        >
+                          {goalBody(g)}
+                        </button>
+                        <button
+                          className="row-gear"
+                          aria-label={`${g.name}の設定`}
+                          title="設定"
+                          onClick={() => {
+                            setGoalError('')
+                            setGoalDraft({ id: g.id, name: g.name, icon: g.icon, color: g.color, targetAmount: g.targetAmount })
+                          }}
+                        >
+                          ⚙
+                        </button>
+                      </div>
+
+                      {open && (
+                        <InlineSave
+                          goal={g}
+                          accent={theme.accent}
+                          onSave={amount => saveToGoal(g, amount)}
+                          onClose={() => setOpenGoalId(null)}
+                        >
+                          {recentOf(g.id).length > 0 && (
+                            <div className="inline-recent">
+                              <span className="inline-recent-label">直近の記録</span>
+                              {recentOf(g.id).map(e => (
+                                <div className="inline-recent-row" key={e.id}>
+                                  <span className="inline-recent-name">{e.label}</span>
+                                  <span className="inline-recent-date">{e.date}</span>
+                                  <span className="inline-recent-amount">+¥{e.amount.toLocaleString()}</span>
+                                  {e.taskId === '' ? (
+                                    <button
+                                      className="link-btn"
+                                      onClick={() => requestDeleteEvent(e)}
+                                    >
+                                      取り消す
+                                    </button>
+                                  ) : (
+                                    <span className="inline-recent-lock" title="タスクの達成を取り消すと戻ります">タスク</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </InlineSave>
+                      )}
                     </li>
                   )
                 })}
@@ -427,18 +591,18 @@ export default function SavingsPage({
                 <button
                   className="fab"
                   style={{ background: theme.accent, boxShadow: `0 4px 14px ${theme.accent}66` }}
-                  onClick={() => {
-                    setGoalError('')
-                    setGoalDraft({ id: null, name: '', icon: '🐷', color: '#f472b6', targetAmount: 0 })
-                  }}
+                  aria-label="貯金を追加"
+                  title="貯金を追加"
+                  onClick={openAddSavings}
                 >
-                  +
+                  ¥
                 </button>
               </div>
             )}
 
             <p className="summary" style={{ textAlign: 'center', padding: '1rem 0' }}>
-              切り崩しは「予定 &gt; 計算」タブから、貯めた記録の一覧は「分析 &gt; 貯金履歴」から見られます
+              目標をタップすると貯められます。切り崩しは「予定 &gt; 計算」タブ、
+              記録の全体は「分析 &gt; 貯金履歴」から見られます
             </p>
           </>
         )}
@@ -539,12 +703,18 @@ export default function SavingsPage({
               </ReadValue>
             }
           >
-            <select value={draft.goalId} onChange={e => setDraft({ ...draft, goalId: e.target.value })}>
-              <option value="">指定なし</option>
-              {goalRows.filter(g => g.id).map(g => (
-                <option key={g.id} value={g.id}>{g.icon} {g.name}</option>
-              ))}
-            </select>
+            {realGoals.length === 0 ? (
+              <p className="summary">
+                貯金先は「貯金目標」タブの＋から作れます。決めずに進めても、あとから振り分けられます
+              </p>
+            ) : (
+              <select value={draft.goalId} onChange={e => setDraft({ ...draft, goalId: e.target.value })}>
+                <option value="">指定なし</option>
+                {realGoals.map(g => (
+                  <option key={g.id} value={g.id}>{g.icon} {g.name}</option>
+                ))}
+              </select>
+            )}
           </DetailRow>
         </DetailModal>
       )}
@@ -634,6 +804,173 @@ export default function SavingsPage({
         </DetailModal>
       )}
 
+      {savingsDraft && (
+        <div className="modal-overlay" onClick={() => { setSavingsDraft(null); setSavingsError('') }}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-handle" />
+            <div className="modal-title">貯金を追加</div>
+
+            {savingsError && <p className="form-error" role="alert">{savingsError}</p>}
+
+            <div className="form-row">
+              <label htmlFor="sv-amount">金額</label>
+              <input
+                id="sv-amount"
+                type="number"
+                inputMode="numeric"
+                value={savingsDraft.amount || ''}
+                onChange={e => setSavingsDraft({ ...savingsDraft, amount: Number(e.target.value) })}
+                placeholder="0"
+                min={0}
+                autoFocus
+              />
+            </div>
+
+            <div className="form-row">
+              <label htmlFor="sv-goal">行き先</label>
+              <select
+                id="sv-goal"
+                value={savingsDraft.goalId}
+                onChange={e => setSavingsDraft({ ...savingsDraft, goalId: e.target.value })}
+              >
+                <option value="">あとで決める</option>
+                {realGoals.map(g => <option key={g.id} value={g.id}>{g.icon} {g.name}</option>)}
+              </select>
+            </div>
+
+            <div className="form-row">
+              <label htmlFor="sv-date">日付</label>
+              <input
+                id="sv-date"
+                type="date"
+                value={savingsDraft.date}
+                onChange={e => setSavingsDraft({ ...savingsDraft, date: e.target.value })}
+              />
+            </div>
+
+            <div className="form-row">
+              <label htmlFor="sv-label">名目</label>
+              <input
+                id="sv-label"
+                type="text"
+                value={savingsDraft.label}
+                onChange={e => setSavingsDraft({ ...savingsDraft, label: e.target.value })}
+                placeholder="給料天引き"
+              />
+            </div>
+
+            <p className="summary" style={{ lineHeight: 1.7 }}>
+              口座のお金は動きません。「使えるお金」から取り置くだけです。
+            </p>
+
+            <div className="form-actions">
+              <button className="btn-sub" onClick={() => { setSavingsDraft(null); setSavingsError('') }}>
+                キャンセル
+              </button>
+              <button style={{ background: theme.accent }} onClick={submitSavings}>追加する</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {sorting && (
+        <div className="modal-overlay" onClick={() => setSorting(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-handle" />
+            <div className="modal-title">行き先を決める</div>
+
+            {sortError && <p className="form-error" role="alert">{sortError}</p>}
+
+            {realGoals.length === 0 ? (
+              <>
+                <p className="summary" style={{ lineHeight: 1.8, marginBottom: '1rem' }}>
+                  振り分け先の目標がまだありません。先に目標を作ってください。
+                </p>
+                <div className="form-actions">
+                  <button className="btn-sub" onClick={() => setSorting(false)}>閉じる</button>
+                  <button
+                    style={{ background: theme.accent }}
+                    onClick={() => {
+                      setSorting(false)
+                      setGoalError('')
+                      setGoalDraft({ id: null, name: '', icon: '🐷', color: '#f472b6', targetAmount: 0 })
+                    }}
+                  >
+                    目標を作る
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="sort-list">
+                  {inboxEvents.map(e => {
+                    const on = sortPick.has(e.id)
+                    return (
+                      <button
+                        key={e.id}
+                        className={`sort-row${on ? ' on' : ''}`}
+                        style={on ? { borderColor: theme.accent } : undefined}
+                        onClick={() => togglePick(e.id)}
+                      >
+                        <span
+                          className={`sort-check${on ? ' on' : ''}`}
+                          style={on ? { background: theme.accent, borderColor: theme.accent } : undefined}
+                        >
+                          {on ? '✓' : ''}
+                        </span>
+                        <span className="sort-main">
+                          <span className="sort-name">{e.label}</span>
+                          <span className="sort-date">{e.date}</span>
+                        </span>
+                        <span className="sort-amount">¥{e.amount.toLocaleString()}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div className="form-row" style={{ marginTop: '0.9rem' }}>
+                  <label htmlFor="sort-goal">行き先</label>
+                  <select id="sort-goal" value={sortGoalId} onChange={e => { setSortGoalId(e.target.value); setSortError('') }}>
+                    {realGoals.map(g => <option key={g.id} value={g.id}>{g.icon} {g.name}</option>)}
+                  </select>
+                </div>
+
+                <div className="form-actions">
+                  <button className="btn-sub" onClick={() => setSorting(false)}>キャンセル</button>
+                  <button style={{ background: theme.accent }} onClick={submitSorting}>
+                    {sortPick.size > 0 ? `${yen(pickedTotal)} を振り分ける` : '振り分ける'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {deleteEvent && (
+        <ConfirmModal
+          message={`「${deleteEvent.label}」で貯めた ${yen(deleteEvent.amount)} の記録を消します。よろしいですか？`}
+          onCancel={() => setDeleteEvent(null)}
+          onConfirm={() => { onRemoveSavingsEvent(deleteEvent.id); setDeleteEvent(null) }}
+        />
+      )}
+
+      {blockedEvent && (
+        <div className="modal-overlay" onClick={() => setBlockedEvent(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-handle" />
+            <div className="modal-title">取り消せません</div>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-h)', lineHeight: 1.7, marginBottom: '1.25rem' }}>
+              この {yen(blockedEvent.amount)} を消すと、すでに切り崩した額を下回ってしまいます。
+              先に「予定 &gt; 計算」タブで切り崩しを戻してください。
+            </p>
+            <div className="form-actions">
+              <button className="btn-sub" onClick={() => setBlockedEvent(null)}>閉じる</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {deleteGoal && (
         <ConfirmModal
           message={`貯金目標「${deleteGoal.name}」を削除します。貯めた ${yen(deleteGoal.kept)} は行き先なしとして残ります。よろしいですか？`}
@@ -671,4 +1008,4 @@ export default function SavingsPage({
   )
 }
 
-export type { TaskDraft }
+export type { SavingsDraft, TaskDraft }

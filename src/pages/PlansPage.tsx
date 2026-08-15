@@ -1,14 +1,16 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { Genre, GoalRow, PlanItem, PlanKind, Tag, Wallet } from '../types'
 import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
+import CalcSummary, { type CalcSegment } from '../components/CalcSummary'
+import InlineDeduct from '../components/InlineDeduct'
 import { GenreDot, GenreSelect, TagList, TagPicker } from '../components/Pickers'
 import EditableList, { EditToolbar, ReorderButton, type EditRow } from '../components/EditableList'
 import { useEditSession } from '../useEditSession'
 import TopTabs from '../components/TopTabs'
 import { themeOf } from '../theme'
 import { yen } from '../utils'
-import { firstError, inRange, notNegative, required, withinAmount } from '../validation'
+import { firstError, inRange, notNegative, required } from '../validation'
 
 type Tab = 'list' | 'calc'
 
@@ -48,91 +50,6 @@ function Progress({ ratio, color }: { ratio: number; color: string }) {
   )
 }
 
-/** 引く/戻すの金額入力。全額・一部の両方をまとめて扱う */
-function DeductControls({ remaining, done, accent, onDeduct, onUndo, confirmLabel }: {
-  remaining: number
-  done: number
-  accent: string
-  onDeduct: (amount: number) => void
-  onUndo: (amount: number) => void
-  confirmLabel?: (amount: number) => string
-}) {
-  const [partial, setPartial] = useState<{ mode: 'deduct' | 'undo'; amount: number } | null>(null)
-  const [confirming, setConfirming] = useState<number | null>(null)
-  const [error, setError] = useState('')
-
-  function requestDeduct(amount: number) {
-    const e = withinAmount(amount, remaining)()
-    if (e) { setError(e); return }
-    setError('')
-    if (confirmLabel) setConfirming(amount)
-    else { onDeduct(amount); setPartial(null) }
-  }
-
-  function requestUndo(amount: number) {
-    const e = withinAmount(amount, done)()
-    if (e) { setError(e); return }
-    setError('')
-    onUndo(amount)
-    setPartial(null)
-  }
-
-  function openPartial(mode: 'deduct' | 'undo') {
-    setError('')
-    setPartial({ mode, amount: 0 })
-  }
-
-  return (
-    <>
-      <div className="item-actions">
-        {remaining > 0 && (
-          <>
-            <button style={{ background: accent }} onClick={() => requestDeduct(remaining)}>全額引く</button>
-            <button className="btn-sub" onClick={() => openPartial('deduct')}>一部引く</button>
-          </>
-        )}
-        {done > 0 && (
-          <>
-            <button className="btn-sub" onClick={() => openPartial('undo')}>一部戻す</button>
-            <button className="btn-sub" onClick={() => { setError(''); onUndo(done) }}>全額戻す</button>
-          </>
-        )}
-      </div>
-
-      {partial && (
-        <div className="item-partial-input">
-          <input
-            type="number"
-            value={partial.amount || ''}
-            onChange={e => setPartial({ ...partial, amount: Number(e.target.value) })}
-            placeholder={`最大 ${(partial.mode === 'deduct' ? remaining : done).toLocaleString()}円`}
-            min={0}
-            autoFocus
-          />
-          <button
-            style={{ background: accent }}
-            onClick={() => partial.mode === 'deduct' ? requestDeduct(partial.amount) : requestUndo(partial.amount)}
-          >
-            確定
-          </button>
-          <button className="btn-sub" onClick={() => { setPartial(null); setError('') }}>×</button>
-        </div>
-      )}
-
-      {error && <p className="form-error" role="alert">{error}</p>}
-
-      {confirming !== null && confirmLabel && (
-        <ConfirmModal
-          message={confirmLabel(confirming)}
-          confirmText="切り崩す"
-          onCancel={() => setConfirming(null)}
-          onConfirm={() => { onDeduct(confirming); setConfirming(null); setPartial(null) }}
-        />
-      )}
-    </>
-  )
-}
-
 export default function PlansPage({
   planItems, wallets, genres, tags, totalBalance, goalRows,
   onSavePlan, onRemovePlan, onApplyPlanEdit,
@@ -141,14 +58,19 @@ export default function PlansPage({
   const theme = themeOf('plans')
   const [tab, setTab] = useState<Tab>('list')
   const [editing, setEditing] = useState<PlanDraft | null>(null)   // 一覧タブ：内容の編集
-  const [deducting, setDeducting] = useState<string | null>(null)  // 計算タブ：引く/戻す
-  const [savingsGoalId, setSavingsGoalId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
-  const [breakdown, setBreakdown] = useState(false)
   const [editError, setEditError] = useState('')
   const [reordering, setReordering] = useState<PlanKind | null>(null)
   const [confirmSave, setConfirmSave] = useState(false)
   const session = useEditSession<PlanItem>()
+
+  // ── 計算タブの状態 ─────────────────────
+  const [openId, setOpenId] = useState<string | null>(null)     // その場で開いている行（plan: / goal:）
+  const [showBreakdown, setShowBreakdown] = useState(false)     // サマリーの内訳
+  const [openMonthly, setOpenMonthly] = useState(false)
+  const [openSavings, setOpenSavings] = useState(false)
+  const [preview, setPreview] = useState<number | null>(null)   // 確定前の増減
+  const [infoId, setInfoId] = useState<string | null>(null)     // 毎月項目の情報シート
 
   function startReorder(kind: PlanKind, group: PlanItem[]) {
     setReordering(kind)
@@ -171,15 +93,27 @@ export default function PlansPage({
   const monthly = sorted.filter(p => p.kind === 'monthly')
 
   const deducted = once.reduce((s, p) => s + p.deductedAmount, 0)
+  const unspent = once.reduce((s, p) => s + Math.max(0, p.estimatedCost - p.deductedAmount), 0)
   const monthlyTotal = monthly.reduce((s, p) => s + p.estimatedCost, 0)
   const savingsKept = goalRows.reduce((s, g) => s + g.kept, 0)
   const remaining = totalBalance - deducted - monthlyTotal - savingsKept
 
-  const savingsTarget = savingsGoalId !== null ? goalRows.find(g => g.id === savingsGoalId) ?? null : null
+  // 差し引きの内訳。色はテーマ色の濃淡で揃え、画面全体の色数を増やさない
+  const segments: CalcSegment[] = [
+    { label: '未定の引き済み', amount: deducted, color: theme.accent },
+    { label: '毎月の支出', amount: monthlyTotal, color: `color-mix(in srgb, ${theme.accent} 58%, #fff)` },
+    { label: 'つもり貯金', amount: savingsKept, color: `color-mix(in srgb, ${theme.accent} 30%, #fff)` },
+  ]
+  const groupTint = `color-mix(in srgb, ${theme.accent} 15%, #fff)`
 
-  const target = deducting ? planItems.find(p => p.id === deducting) ?? null : null
+  const info = infoId ? planItems.find(p => p.id === infoId) ?? null : null
   const editGenre = genres.find(g => g.id === editing?.genreId)
-  const targetGenre = genres.find(g => g.id === target?.genreId)
+  const infoGenre = genres.find(g => g.id === info?.genreId)
+
+  function openRow(key: string) {
+    setOpenId(prev => prev === key ? null : key)
+    setPreview(null)
+  }
 
   function openNew() {
     setEditError('')
@@ -217,63 +151,25 @@ export default function PlansPage({
     return true
   }
 
+  // ── 一覧タブ ───────────────────────────
   /** 行の中身。並び替え中は右側の金額を隠してハンドルの場所を空ける */
   function rowBody(p: PlanItem, compact: boolean) {
-    const showProgress = tab === 'calc' && p.kind === 'once'
-    const done = p.kind === 'once' && p.estimatedCost > 0 && p.deductedAmount >= p.estimatedCost
-    const genre = genres.find(g => g.id === p.genreId)
     return (
       <>
         <GenreDot genres={genres} genreId={p.genreId} fallback="🗒" />
         <span className="row-main">
-          <span className={`row-title${done ? ' struck' : ''}`}>
+          <span className="row-title">
             {p.kind === 'monthly' && p.dayOfMonth > 0 ? `毎月${p.dayOfMonth}日 ` : ''}{p.name}
           </span>
-          {showProgress ? (
-            <Progress
-              ratio={p.estimatedCost > 0 ? p.deductedAmount / p.estimatedCost : 0}
-              color={genre?.color ?? theme.accent}
-            />
-          ) : (
-            <span className="row-sub"><TagList tags={tags} ids={p.tagIds} /></span>
-          )}
+          <span className="row-sub"><TagList tags={tags} ids={p.tagIds} /></span>
         </span>
-        {!compact && (
-          <span className="row-right">
-            {showProgress ? (
-              <>
-                <span className="row-note">
-                  ¥{p.deductedAmount.toLocaleString()} / {p.estimatedCost.toLocaleString()}
-                </span>
-                <span className="row-amount" style={{ color: genre?.color ?? theme.accent }}>
-                  {p.estimatedCost > 0 ? Math.round((p.deductedAmount / p.estimatedCost) * 100) : 0}%
-                </span>
-              </>
-            ) : (
-              <span className="row-amount">¥{p.estimatedCost.toLocaleString()}</span>
-            )}
-          </span>
-        )}
+        {!compact && <span className="row-right"><span className="row-amount">¥{p.estimatedCost.toLocaleString()}</span></span>}
       </>
     )
   }
 
-  function renderRow(p: PlanItem) {
-    const done = p.kind === 'once' && p.estimatedCost > 0 && p.deductedAmount >= p.estimatedCost
-    return (
-      <li key={p.id}>
-        <button
-          className={`row-card${done ? ' done' : ''}`}
-          onClick={() => tab === 'list' ? openEdit(p) : setDeducting(p.id)}
-        >
-          {rowBody(p, false)}
-        </button>
-      </li>
-    )
-  }
-
   function renderSection(kind: PlanKind, group: PlanItem[], title: string, emptyHint: string) {
-    const inReorder = tab === 'list' && reordering === kind
+    const inReorder = reordering === kind
     const rows: EditRow[] = session.draft.map(p => ({ id: p.id, content: rowBody(p, true) }))
     const count = inReorder ? session.draft.length : group.length
 
@@ -281,7 +177,7 @@ export default function PlansPage({
       <>
         <div className="section-header">
           <h3>{title} ({count})</h3>
-          {tab === 'list' && group.length > 1 && reordering === null && (
+          {group.length > 1 && reordering === null && (
             <ReorderButton onClick={() => startReorder(kind, group)} />
           )}
         </div>
@@ -308,9 +204,149 @@ export default function PlansPage({
         ) : group.length === 0 ? (
           <p className="empty-hint">{emptyHint}</p>
         ) : (
-          <ul className="item-list">{group.map(renderRow)}</ul>
+          <ul className="item-list">
+            {group.map(p => (
+              <li key={p.id}>
+                <button className="row-card" onClick={() => openEdit(p)}>{rowBody(p, false)}</button>
+              </li>
+            ))}
+          </ul>
         )}
       </>
+    )
+  }
+
+  // ── 計算タブ ───────────────────────────
+  /** 引く／戻すを行の下に開く未定の行 */
+  function renderCalcRow(p: PlanItem) {
+    const key = `plan:${p.id}`
+    const open = openId === key
+    // 進捗の色はジャンルではなくテーマ色。一覧で色を持つのはタグだけにする
+    const color = theme.accent
+    const left = p.estimatedCost - p.deductedAmount
+    const finished = p.estimatedCost > 0 && p.deductedAmount >= p.estimatedCost
+    const pct = p.estimatedCost > 0 ? Math.round((p.deductedAmount / p.estimatedCost) * 100) : 0
+
+    return (
+      <li key={p.id}>
+        <button
+          className={`row-card${finished && !open ? ' done' : ''}${open ? ' expanded' : ''}`}
+          style={open ? { borderColor: theme.accent } : undefined}
+          onClick={() => openRow(key)}
+        >
+          <GenreDot genres={genres} genreId={p.genreId} fallback="🗒" />
+          <span className="row-main">
+            <span className={`row-title${finished ? ' struck' : ''}`}>{p.name}</span>
+            <Progress ratio={p.estimatedCost > 0 ? p.deductedAmount / p.estimatedCost : 0} color={color} />
+          </span>
+          <span className="row-right">
+            <span className="row-note">¥{p.deductedAmount.toLocaleString()} / {p.estimatedCost.toLocaleString()}</span>
+            <span className="row-amount" style={{ color }}>{pct}%</span>
+          </span>
+          <span className="row-chevron">{open ? '⌃' : '⌄'}</span>
+        </button>
+
+        {open && (p.estimatedCost > 0 ? (
+          <InlineDeduct
+            remaining={left}
+            done={p.deductedAmount}
+            accent={theme.accent}
+            budget={remaining}
+            budgetSign={-1}
+            onDeduct={amount => onDeduct(p.id, amount)}
+            onUndo={amount => onUndoDeduct(p.id, amount)}
+            onPreview={setPreview}
+            onClose={() => setOpenId(null)}
+          />
+        ) : (
+          <div className="inline-panel" style={{ borderColor: theme.accent }}>
+            <p className="summary">
+              予測金額が未設定です。「出費予定」タブで金額を入れると、ここから引けるようになります。
+            </p>
+            <div className="inline-actions">
+              <button className="btn-sub" onClick={() => setOpenId(null)}>閉じる</button>
+            </div>
+          </div>
+        ))}
+      </li>
+    )
+  }
+
+  /** 切り崩し／戻すを行の下に開く貯金の行 */
+  function renderGoalRow(g: GoalRow) {
+    const key = `goal:${g.id || '__none'}`
+    const open = openId === key
+
+    return (
+      <li key={g.id || '__none'}>
+        <button
+          className={`row-card${open ? ' expanded' : ''}`}
+          style={open ? { borderColor: theme.accent } : undefined}
+          onClick={() => openRow(key)}
+        >
+          <span className="genre-dot" style={{ background: `${g.color}33`, width: 34, height: 34, fontSize: 17 }}>
+            {g.icon}
+          </span>
+          <span className="row-main">
+            <span className="row-title">{g.name}</span>
+            <Progress ratio={g.earned > 0 ? g.withdrawn / g.earned : 0} color={g.color} />
+          </span>
+          <span className="row-right">
+            <span className="row-note">切崩 ¥{g.withdrawn.toLocaleString()} / {g.earned.toLocaleString()}</span>
+            <span className="row-amount" style={{ color: g.color }}>残 ¥{g.kept.toLocaleString()}</span>
+          </span>
+          <span className="row-chevron">{open ? '⌃' : '⌄'}</span>
+        </button>
+
+        {open && (
+          <InlineDeduct
+            remaining={g.kept}
+            done={g.withdrawn}
+            accent={theme.accent}
+            budget={remaining}
+            budgetSign={1}
+            deductVerb={{ now: '切り崩す', past: '切り崩した' }}
+            info={
+              <>
+                <p className="summary">
+                  貯めた額 {yen(g.earned)}　切り崩し済み {yen(g.withdrawn)}　残り {yen(g.kept)}
+                  {g.targetAmount > 0 && `　目標 ${yen(g.targetAmount)}`}
+                </p>
+                <p className="summary">切り崩した分は取っておく額から外れ、その分だけ使える金額が増えます。</p>
+              </>
+            }
+            onDeduct={amount => onWithdrawSavings(g.id, amount)}
+            onUndo={amount => onUndoWithdrawSavings(g.id, amount)}
+            onPreview={setPreview}
+            onClose={() => setOpenId(null)}
+            confirmLabel={amount =>
+              `「${g.name}」から ${yen(amount)} を切り崩します。取っておくはずだったお金です。本当によろしいですか？`}
+          />
+        )}
+      </li>
+    )
+  }
+
+  /** 触らなくても自動で引かれているものを畳んでおくカード */
+  function groupCard(
+    icon: string, title: string, sub: string, amount: number,
+    open: boolean, onToggle: () => void, children: ReactNode,
+  ) {
+    return (
+      <li>
+        <button className={`row-card${open ? ' group-open' : ''}`} onClick={onToggle}>
+          <span className="genre-dot" style={{ background: groupTint, width: 34, height: 34, fontSize: 17 }}>
+            {icon}
+          </span>
+          <span className="row-main">
+            <span className="row-title">{title}</span>
+            <span className="row-sub">{sub}</span>
+          </span>
+          <span className="row-amount">−¥{amount.toLocaleString()}</span>
+          <span className="row-chevron">{open ? '⌃' : '⌄'}</span>
+        </button>
+        {open && <ul className="item-list sub-list">{children}</ul>}
+      </li>
     )
   }
 
@@ -319,77 +355,99 @@ export default function PlansPage({
       <TopTabs
         tabs={[{ id: 'list' as Tab, label: '出費予定' }, { id: 'calc' as Tab, label: '計算' }]}
         active={tab}
-        onChange={t => { setTab(t); setEditing(null); setDeducting(null); exitReorder() }}
+        onChange={t => {
+          setTab(t)
+          setEditing(null)
+          setOpenId(null)
+          setPreview(null)
+          exitReorder()
+        }}
         accent={theme.accent}
         soft={theme.soft}
       />
 
       <div className="page-scroll">
-        {tab === 'calc' && (
-          <div className="hero-card">
-            <div className="hero-label">残り使える金額</div>
-            <div className="hero-number">¥{remaining.toLocaleString()}</div>
-          </div>
-        )}
-
-        {renderSection('once', once, '未定', 'まだ予定がありません')}
-        {renderSection('monthly', monthly, '毎月', '定期支出の登録がありません')}
-
-        {tab === 'calc' && (
+        {tab === 'list' ? (
           <>
-            <div className="section-header"><h3>貯金 ({goalRows.length})</h3></div>
-            {goalRows.length === 0 ? (
-              <p className="empty-hint">つもり貯金がありません</p>
-            ) : (
-              <ul className="item-list">
-                {goalRows.map(g => (
-                  <li key={g.id || '__none'}>
-                    <button className="row-card" onClick={() => setSavingsGoalId(g.id)}>
-                      <span className="genre-dot" style={{ background: `${g.color}33`, width: 34, height: 34, fontSize: 17 }}>
-                        {g.icon}
-                      </span>
-                      <span className="row-main">
-                        <span className="row-title">{g.name}</span>
-                        <Progress
-                          ratio={g.earned > 0 ? g.withdrawn / g.earned : 0}
-                          color={g.color}
-                        />
-                      </span>
-                      <span className="row-right">
-                        <span className="row-note">
-                          切崩 ¥{g.withdrawn.toLocaleString()} / {g.earned.toLocaleString()}
-                        </span>
-                        <span className="row-amount" style={{ color: g.color }}>
-                          残 ¥{g.kept.toLocaleString()}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '0.5rem 0 0' }}>
+            {renderSection('once', once, '未定', 'まだ予定がありません')}
+            {renderSection('monthly', monthly, '毎月', '定期支出の登録がありません')}
+            <div className="fab-row">
               <button
-                style={{ background: theme.accent, padding: '0.65rem 2rem', borderRadius: '999px', fontSize: '0.95rem' }}
-                onClick={() => setBreakdown(true)}
+                className="fab"
+                style={{ background: theme.accent, boxShadow: `0 4px 14px ${theme.accent}66` }}
+                onClick={openNew}
               >
-                計算する
+                +
               </button>
             </div>
           </>
-        )}
+        ) : (
+          <>
+            <CalcSummary
+              totalBalance={totalBalance}
+              remaining={remaining}
+              segments={segments}
+              unspent={unspent}
+              preview={preview}
+              open={showBreakdown}
+              onToggle={() => setShowBreakdown(v => !v)}
+            />
 
-        {tab === 'list' && (
-          <div className="fab-row">
-            <button
-              className="fab"
-              style={{ background: theme.accent, boxShadow: `0 4px 14px ${theme.accent}66` }}
-              onClick={openNew}
-            >
-              +
-            </button>
-          </div>
+            <div className="section-header">
+              <h3>未定 ({once.length})</h3>
+              {once.length > 0 && <span className="section-hint">タップしてその場で引く</span>}
+            </div>
+            {once.length === 0 ? (
+              <p className="empty-hint">まだ予定がありません</p>
+            ) : (
+              <ul className="item-list">{once.map(renderCalcRow)}</ul>
+            )}
+
+            {(monthly.length > 0 || goalRows.length > 0) && (
+              <>
+                <div className="section-header">
+                  <h3>自動で引かれているもの</h3>
+                  <span className="section-hint">タップで内訳</span>
+                </div>
+                <ul className="item-list">
+                  {monthly.length > 0 && groupCard(
+                    '🔁',
+                    `毎月の支出  ${monthly.length}件`,
+                    '常に全額が引かれます',
+                    monthlyTotal,
+                    openMonthly,
+                    () => setOpenMonthly(v => !v),
+                    monthly.map(p => (
+                      <li key={p.id}>
+                        <button className="row-card" onClick={() => setInfoId(p.id)}>
+                          <GenreDot genres={genres} genreId={p.genreId} fallback="🗒" />
+                          <span className="row-main">
+                            <span className="row-title">
+                              {p.dayOfMonth > 0 ? `毎月${p.dayOfMonth}日 ` : ''}{p.name}
+                            </span>
+                            <span className="row-sub">
+                              {wallets.find(w => w.id === p.walletId)?.name ?? '口座未設定'}
+                            </span>
+                          </span>
+                          <span className="row-amount">¥{p.estimatedCost.toLocaleString()}</span>
+                        </button>
+                      </li>
+                    )),
+                  )}
+
+                  {goalRows.length > 0 && groupCard(
+                    '🐷',
+                    `つもり貯金  ${goalRows.length}件`,
+                    '切り崩すと使える金額が増えます',
+                    savingsKept,
+                    openSavings,
+                    () => setOpenSavings(v => !v),
+                    goalRows.map(renderGoalRow),
+                  )}
+                </ul>
+              </>
+            )}
+          </>
         )}
       </div>
 
@@ -514,113 +572,31 @@ export default function PlansPage({
         </DetailModal>
       )}
 
-      {/* 計算タブ：引く/戻すのみ */}
-      {target && (
+      {/* 計算タブ：毎月の支出の詳細（金額は変えられない） */}
+      {info && (
         <DetailModal
-          icon={targetGenre?.icon ?? '🗒'}
-          color={targetGenre ? `${targetGenre.color}55` : theme.soft}
-          name={target.name}
-          onClose={() => setDeducting(null)}
+          icon={infoGenre?.icon ?? '🗒'}
+          color={infoGenre ? `${infoGenre.color}55` : theme.soft}
+          name={info.name}
+          onClose={() => setInfoId(null)}
         >
-          {target.kind === 'once' ? (
-            <>
-              <DetailRow icon="💰" label="予測金額">
-                <span className="detail-value">{yen(target.estimatedCost)}</span>
-              </DetailRow>
-              <DetailRow icon="✅" label="引き済み">
-                <span className="detail-value">{yen(target.deductedAmount)}</span>
-              </DetailRow>
-              <DetailRow icon="🕗" label="残り">
-                <span className="detail-value">{yen(target.estimatedCost - target.deductedAmount)}</span>
-              </DetailRow>
-
-              <DetailBlock icon="✂️" label="引く / 戻す">
-                <DeductControls
-                  remaining={target.estimatedCost - target.deductedAmount}
-                  done={target.deductedAmount}
-                  accent={theme.accent}
-                  onDeduct={amount => onDeduct(target.id, amount)}
-                  onUndo={amount => onUndoDeduct(target.id, amount)}
-                />
-              </DetailBlock>
-            </>
-          ) : (
-            <>
-              <DetailRow icon="💰" label="金額">
-                <span className="detail-value">{yen(target.estimatedCost)}</span>
-              </DetailRow>
-              {target.dayOfMonth > 0 && (
-                <DetailRow icon="📅" label="引き落とし日">
-                  <span className="detail-value">毎月{target.dayOfMonth}日</span>
-                </DetailRow>
-              )}
-              <p className="summary" style={{ padding: '0.5rem 0.25rem' }}>
-                毎月の支出は常に全額が差し引かれます。内容の変更は「出費予定」タブから行えます。
-              </p>
-            </>
-          )}
-        </DetailModal>
-      )}
-
-      {/* 計算タブ：つもり貯金の切り崩し（貯金目標ごと） */}
-      {savingsTarget && (
-        <DetailModal
-          icon={savingsTarget.icon}
-          color={`${savingsTarget.color}55`}
-          name={savingsTarget.name}
-          onClose={() => setSavingsGoalId(null)}
-        >
-          <DetailRow icon="💰" label="貯めた額">
-            <span className="detail-value">{yen(savingsTarget.earned)}</span>
+          <DetailRow icon="💰" label="金額">
+            <span className="detail-value">{yen(info.estimatedCost)}</span>
           </DetailRow>
-          <DetailRow icon="✂️" label="切り崩し済み">
-            <span className="detail-value">{yen(savingsTarget.withdrawn)}</span>
-          </DetailRow>
-          <DetailRow icon="🐷" label="残り">
-            <span className="detail-value">{yen(savingsTarget.kept)}</span>
-          </DetailRow>
-          {savingsTarget.targetAmount > 0 && (
-            <DetailRow icon="🎯" label="目標額">
-              <span className="detail-value">{yen(savingsTarget.targetAmount)}</span>
+          {info.dayOfMonth > 0 && (
+            <DetailRow icon="📅" label="引き落とし日">
+              <span className="detail-value">毎月{info.dayOfMonth}日</span>
             </DetailRow>
           )}
-
-          <DetailBlock icon="✂️" label="切り崩す / 戻す">
-            <p className="summary" style={{ marginBottom: '0.6rem' }}>
-              切り崩した分は取っておく額から外れ、その分だけ使える金額が増えます。
-            </p>
-            <DeductControls
-              remaining={savingsTarget.kept}
-              done={savingsTarget.withdrawn}
-              accent={theme.accent}
-              onDeduct={amount => onWithdrawSavings(savingsTarget.id, amount)}
-              onUndo={amount => onUndoWithdrawSavings(savingsTarget.id, amount)}
-              confirmLabel={amount =>
-                `「${savingsTarget.name}」から ${yen(amount)} を切り崩します。取っておくはずだったお金です。本当によろしいですか？`}
-            />
-          </DetailBlock>
+          {info.walletId && (
+            <DetailRow icon="💳" label="口座">
+              <span className="detail-value">{wallets.find(w => w.id === info.walletId)?.name ?? '未設定'}</span>
+            </DetailRow>
+          )}
+          <p className="summary" style={{ padding: '0.5rem 0.25rem' }}>
+            毎月の支出は常に全額が差し引かれます。内容の変更は「出費予定」タブから行えます。
+          </p>
         </DetailModal>
-      )}
-
-      {breakdown && (
-        <div className="modal-overlay" onClick={() => setBreakdown(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-handle" />
-            <div className="modal-title">計算結果</div>
-            <div className="calc-row"><span>所持金</span><span>¥{totalBalance.toLocaleString()}</span></div>
-            <div className="calc-row"><span>− 未定（引き済み）</span><span>¥{deducted.toLocaleString()}</span></div>
-            <div className="calc-row"><span>− 毎月</span><span>¥{monthlyTotal.toLocaleString()}</span></div>
-            <div className="calc-row"><span>− つもり貯金</span><span>¥{savingsKept.toLocaleString()}</span></div>
-            <hr className="divider" />
-            <div className={`calc-total${remaining < 0 ? ' negative' : ''}`}>
-              <span>残り使える金額</span>
-              <span>¥{remaining.toLocaleString()}</span>
-            </div>
-            <div className="form-actions">
-              <button onClick={() => setBreakdown(false)}>閉じる</button>
-            </div>
-          </div>
-        </div>
       )}
 
       {deleteTarget && (
