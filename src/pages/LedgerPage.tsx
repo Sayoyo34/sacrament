@@ -3,6 +3,7 @@ import type { Genre, LedgerEntry, Tag, Wallet } from '../types'
 import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
 import { GenreDot, GenreSelect, TagFilter, TagList, TagPicker } from '../components/Pickers'
+import type { LabelDraft } from '../components/LabelListPage'
 import TopTabs from '../components/TopTabs'
 import { themeOf } from '../theme'
 import { matchesTags, monthLabel, monthOf, thisMonth, todayStr, yen } from '../utils'
@@ -38,6 +39,8 @@ interface Props {
   onRemoveEntry: (id: string) => void
   onSaveWallet: (draft: WalletDraft) => void
   onRemoveWallet: (id: string) => void
+  onSaveGenre: (draft: LabelDraft) => string
+  onSaveTag: (draft: LabelDraft) => string
 }
 
 function shiftMonth(month: string, delta: number) {
@@ -48,7 +51,7 @@ function shiftMonth(month: string, delta: number) {
 
 export default function LedgerPage({
   wallets, entries, genres, tags, totalBalance,
-  onSaveEntry, onRemoveEntry, onSaveWallet, onRemoveWallet,
+  onSaveEntry, onRemoveEntry, onSaveWallet, onRemoveWallet, onSaveGenre, onSaveTag,
 }: Props) {
   const theme = themeOf('ledger')
   const [tab, setTab] = useState<Tab>('ledger')
@@ -311,7 +314,10 @@ export default function LedgerPage({
               </ReadValue>
             }
           >
-            <GenreSelect genres={genres} value={draft.genreId} onChange={v => setDraft({ ...draft, genreId: v })} />
+            <GenreSelect
+              genres={genres} value={draft.genreId} onChange={v => setDraft({ ...draft, genreId: v })}
+              accent={theme.accent} onCreate={g => onSaveGenre({ id: null, ...g })}
+            />
           </DetailRow>
 
           <DetailBlock
@@ -321,7 +327,10 @@ export default function LedgerPage({
               ? <TagList tags={tags} ids={draft.tagIds} />
               : <span className="summary">なし</span>}
           >
-            <TagPicker tags={tags} value={draft.tagIds} onChange={ids => setDraft({ ...draft, tagIds: ids })} />
+            <TagPicker
+              tags={tags} value={draft.tagIds} onChange={ids => setDraft({ ...draft, tagIds: ids })}
+              accent={theme.accent} onCreate={t => onSaveTag({ id: null, name: t.name, color: t.color, icon: '' })}
+            />
           </DetailBlock>
 
           <DetailBlock

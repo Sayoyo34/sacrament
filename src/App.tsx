@@ -274,12 +274,15 @@ export default function App() {
   }
 
   // ── ジャンル / タグ ────────────────────
-  function saveGenre(d: LabelDraft) {
+  /** 保存した項目の id を返す。項目追加の途中でその場作成した時に、作った先を選ぶのに使う */
+  function saveGenre(d: LabelDraft): string {
     if (d.id === null) {
-      setGenres(prev => [...prev, { id: generateId(), name: d.name, color: d.color, icon: d.icon || '📦' }])
-      return
+      const id = generateId()
+      setGenres(prev => [...prev, { id, name: d.name, color: d.color, icon: d.icon || '📦' }])
+      return id
     }
     setGenres(prev => prev.map(g => g.id === d.id ? { ...g, name: d.name, color: d.color, icon: d.icon || '📦' } : g))
+    return d.id
   }
 
   /** 削除したジャンルを参照している項目は未設定に戻す */
@@ -308,12 +311,14 @@ export default function App() {
     if (removedIds.length) unassignGenres(removedIds)
   }
 
-  function saveTag(d: LabelDraft) {
+  function saveTag(d: LabelDraft): string {
     if (d.id === null) {
-      setTags(prev => [...prev, { id: generateId(), name: d.name, color: d.color }])
-      return
+      const id = generateId()
+      setTags(prev => [...prev, { id, name: d.name, color: d.color }])
+      return id
     }
     setTags(prev => prev.map(t => t.id === d.id ? { ...t, name: d.name, color: d.color } : t))
+    return d.id
   }
 
   /** 削除したタグは各項目のタグ一覧からも外す */
@@ -397,6 +402,8 @@ export default function App() {
             onRemoveEntry={removeEntry}
             onSaveWallet={saveWallet}
             onRemoveWallet={removeWallet}
+            onSaveGenre={saveGenre}
+            onSaveTag={saveTag}
           />
         )}
         {page === 'savings' && (
@@ -418,6 +425,7 @@ export default function App() {
             onAddSavings={addSavings}
             onRemoveSavingsEvent={removeSavingsEvent}
             onAssignSavings={assignSavings}
+            onSaveGenre={saveGenre}
           />
         )}
         {page === 'plans' && (
@@ -433,6 +441,8 @@ export default function App() {
             onApplyPlanEdit={applyPlanEdit}
             onDeduct={deductPlan}
             onUndoDeduct={undoDeductPlan}
+            onSaveGenre={saveGenre}
+            onSaveTag={saveTag}
             onWithdrawSavings={withdrawSavings}
             onUndoWithdrawSavings={undoWithdrawSavings}
           />

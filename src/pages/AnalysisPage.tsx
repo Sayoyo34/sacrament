@@ -3,6 +3,7 @@ import type { Genre, LedgerEntry, SavingsEvent, Tag, Task } from '../types'
 import TopTabs from '../components/TopTabs'
 import { Bars, Donut, type Slice } from '../components/Charts'
 import { TagFilter } from '../components/Pickers'
+import { readableColor } from '../palette'
 import { themeOf } from '../theme'
 import { daysCounted, matchesTags, monthLabel, monthOf, recentMonths, thisMonth, yearOf } from '../utils'
 
@@ -120,7 +121,9 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
     .map(t => {
       const done = t.completedDates.filter(d => monthOf(d) === month).length
       const g = genres.find(x => x.id === t.genreId)
-      return { task: t, done, rate: denominator > 0 ? done / denominator : 0, color: g?.color ?? theme.accent }
+      const color = g?.color ?? theme.accent
+      // テーマ色は既に読みやすい濃さだが、ジャンル色は薄い場合があるので文字用は別に用意する
+      return { task: t, done, rate: denominator > 0 ? done / denominator : 0, color, textColor: g ? readableColor(color) : color }
     })
     .sort((a, b) => b.rate - a.rate)
 
@@ -190,7 +193,7 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
                           </span>
                           <span className="row-right">
                             <span className="row-amount">¥{s.value.toLocaleString()}</span>
-                            <span className="row-amount" style={{ color: s.color, fontSize: '0.8rem' }}>{pct}%</span>
+                            <span className="row-amount" style={{ color: readableColor(s.color), fontSize: '0.8rem' }}>{pct}%</span>
                           </span>
                         </div>
                       </li>
@@ -205,9 +208,9 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
                       {byTag.map(({ tag, value }) => (
                         <li key={tag.id}>
                           <button className="row-card" onClick={() => setFilterTags([tag.id])}>
-                            <span className="genre-dot" style={{ background: `${tag.color}33`, width: 34, height: 34, fontSize: 15, color: tag.color, fontWeight: 700 }}>#</span>
+                            <span className="genre-dot" style={{ background: `${tag.color}33`, width: 34, height: 34, fontSize: 15, color: readableColor(tag.color), fontWeight: 700 }}>#</span>
                             <span className="row-main">
-                              <span className="row-title" style={{ color: tag.color }}>#{tag.name}</span>
+                              <span className="row-title" style={{ color: readableColor(tag.color) }}>#{tag.name}</span>
                               <span className="bar">
                                 <span className="bar-fill" style={{ width: `${(value / byTag[0].value) * 100}%`, background: tag.color }} />
                               </span>
@@ -284,7 +287,7 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
               <p className="empty-hint">繰り返しタスクがありません</p>
             ) : (
               <ul className="item-list">
-                {dailyStats.map(({ task, done, rate, color }) => (
+                {dailyStats.map(({ task, done, rate, color, textColor }) => (
                   <li key={task.id}>
                     <div className="row-card" style={{ cursor: 'default' }}>
                       <span className="genre-dot" style={{ background: `${color}33`, width: 34, height: 34, fontSize: 17 }}>
@@ -298,7 +301,7 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
                       </span>
                       <span className="row-right">
                         <span className="row-note">{done} / {denominator}日</span>
-                        <span className="row-amount" style={{ color, fontSize: '0.8rem' }}>
+                        <span className="row-amount" style={{ color: textColor, fontSize: '0.8rem' }}>
                           {Math.round(rate * 100)}%
                         </span>
                       </span>

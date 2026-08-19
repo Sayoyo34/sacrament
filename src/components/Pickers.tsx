@@ -1,8 +1,13 @@
 import { useState } from 'react'
 import type { Genre, Tag } from '../types'
+import QuickAddLabel from './QuickAddLabel'
+import { GENRE_NAME_MAX, readableColor, TAG_NAME_MAX } from '../palette'
 
 /** 一度に並べるタグ数の上限。選択中のものは超えていても必ず出す */
 const TAG_FILTER_LIMIT = 8
+
+/** ジャンル/タグをその場で新規作成した時に呼ぶ。作った項目の id を返す */
+type CreateLabel = (draft: { name: string; icon: string; color: string }) => string
 
 /**
  * 推しカラーを読みやすい濃さに揃える。
@@ -12,35 +17,65 @@ const TAG_FILTER_LIMIT = 8
 function tagTint(color: string) {
   return {
     background: `color-mix(in srgb, ${color} 16%, #fff)`,
-    // 52% は色味を残しつつ、パレット中いちばん明るい黄でもコントラスト比 5:1 を確保できる下限
-    color: `color-mix(in srgb, ${color} 52%, #000)`,
+    color: readableColor(color),
   }
 }
 
-export function GenreSelect({ genres, value, onChange }: {
+export function GenreSelect({ genres, value, onChange, accent, onCreate }: {
   genres: Genre[]
   value: string
   onChange: (id: string) => void
+  accent?: string
+  /** 渡すと選択肢の末尾に「＋ 新しいジャンルを追加」が出て、その場で作れる */
+  onCreate?: CreateLabel
 }) {
+  const [adding, setAdding] = useState(false)
   return (
-    <select value={value} onChange={e => onChange(e.target.value)}>
-      <option value="">未設定</option>
-      {genres.map(g => (
-        <option key={g.id} value={g.id}>{g.icon} {g.name}</option>
-      ))}
-    </select>
+    <>
+      <select
+        value={value}
+        onChange={e => {
+          if (e.target.value === '__new__') { setAdding(true); return }
+          onChange(e.target.value)
+        }}
+      >
+        <option value="">未設定</option>
+        {genres.map(g => (
+          <option key={g.id} value={g.id}>{g.icon} {g.name}</option>
+        ))}
+        {onCreate && <option value="__new__">＋ 新しいジャンルを追加</option>}
+      </select>
+
+      {adding && onCreate && (
+        <QuickAddLabel
+          kind="ジャンル"
+          withIcon
+          nameMax={GENRE_NAME_MAX}
+          existingNames={genres.map(g => g.name)}
+          accent={accent ?? '#8a5a3b'}
+          onCancel={() => setAdding(false)}
+          onCreate={draft => { onChange(onCreate(draft)); setAdding(false) }}
+        />
+      )}
+    </>
   )
 }
 
 /** タグは複数選択。チップをタップでオン/オフ */
-export function TagPicker({ tags, value, onChange }: {
+export function TagPicker({ tags, value, onChange, accent, onCreate }: {
   tags: Tag[]
   value: string[]
   onChange: (ids: string[]) => void
+  accent?: string
+  /** 渡すと「＋ 追加」チップが出て、その場で作って選択済みにできる */
+  onCreate?: CreateLabel
 }) {
-  if (tags.length === 0) {
+  const [adding, setAdding] = useState(false)
+
+  if (tags.length === 0 && !onCreate) {
     return <p className="summary">タグは「その他 &gt; タグ管理」で追加できます</p>
   }
+
   return (
     <div className="tag-picker">
       {tags.map(t => {
@@ -49,13 +84,28 @@ export function TagPicker({ tags, value, onChange }: {
           <button
             key={t.id}
             className={`tag-chip${on ? ' on' : ''}`}
-            style={on ? { background: t.color, borderColor: t.color } : tagTint(t.color)}
+            style={on ? { background: readableColor(t.color), borderColor: readableColor(t.color) } : tagTint(t.color)}
             onClick={() => onChange(on ? value.filter(id => id !== t.id) : [...value, t.id])}
           >
             #{t.name}
           </button>
         )
       })}
+      {onCreate && (
+        <button className="tag-chip tag-more" onClick={() => setAdding(true)}>＋ 追加</button>
+      )}
+
+      {adding && onCreate && (
+        <QuickAddLabel
+          kind="タグ"
+          withIcon={false}
+          nameMax={TAG_NAME_MAX}
+          existingNames={tags.map(t => t.name)}
+          accent={accent ?? '#8a5a3b'}
+          onCancel={() => setAdding(false)}
+          onCreate={draft => { onChange([...value, onCreate(draft)]); setAdding(false) }}
+        />
+      )}
     </div>
   )
 }
@@ -87,7 +137,7 @@ export function TagFilter({ tags, selected, onChange }: {
             <button
               key={t.id}
               className={`tag-chip${on ? ' on' : ''}`}
-              style={on ? { background: t.color, borderColor: t.color } : tagTint(t.color)}
+              style={on ? { background: readableColor(t.color), borderColor: readableColor(t.color) } : tagTint(t.color)}
               onClick={() => onChange(on ? selected.filter(id => id !== t.id) : [...selected, t.id])}
             >
               #{t.name}

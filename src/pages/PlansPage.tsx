@@ -5,9 +5,11 @@ import ConfirmModal from '../components/ConfirmModal'
 import CalcSummary, { type CalcSegment } from '../components/CalcSummary'
 import InlineDeduct from '../components/InlineDeduct'
 import { GenreDot, GenreSelect, TagList, TagPicker } from '../components/Pickers'
+import type { LabelDraft } from '../components/LabelListPage'
 import EditableList, { EditToolbar, ReorderButton, type EditRow } from '../components/EditableList'
 import { useEditSession } from '../useEditSession'
 import TopTabs from '../components/TopTabs'
+import { readableColor } from '../palette'
 import { themeOf } from '../theme'
 import { yen } from '../utils'
 import { firstError, inRange, notNegative, required } from '../validation'
@@ -40,6 +42,8 @@ interface Props {
   onUndoDeduct: (id: string, amount: number) => void
   onWithdrawSavings: (goalId: string, amount: number) => void
   onUndoWithdrawSavings: (goalId: string, amount: number) => void
+  onSaveGenre: (draft: LabelDraft) => string
+  onSaveTag: (draft: LabelDraft) => string
 }
 
 function Progress({ ratio, color }: { ratio: number; color: string }) {
@@ -54,6 +58,7 @@ export default function PlansPage({
   planItems, wallets, genres, tags, totalBalance, goalRows,
   onSavePlan, onRemovePlan, onApplyPlanEdit,
   onDeduct, onUndoDeduct, onWithdrawSavings, onUndoWithdrawSavings,
+  onSaveGenre, onSaveTag,
 }: Props) {
   const theme = themeOf('plans')
   const [tab, setTab] = useState<Tab>('list')
@@ -293,7 +298,7 @@ export default function PlansPage({
           </span>
           <span className="row-right">
             <span className="row-note">切崩 ¥{g.withdrawn.toLocaleString()} / {g.earned.toLocaleString()}</span>
-            <span className="row-amount" style={{ color: g.color }}>残 ¥{g.kept.toLocaleString()}</span>
+            <span className="row-amount" style={{ color: readableColor(g.color) }}>残 ¥{g.kept.toLocaleString()}</span>
           </span>
           <span className="row-chevron">{open ? '⌃' : '⌄'}</span>
         </button>
@@ -538,7 +543,10 @@ export default function PlansPage({
               </ReadValue>
             }
           >
-            <GenreSelect genres={genres} value={editing.genreId} onChange={v => setEditing({ ...editing, genreId: v })} />
+            <GenreSelect
+              genres={genres} value={editing.genreId} onChange={v => setEditing({ ...editing, genreId: v })}
+              accent={theme.accent} onCreate={g => onSaveGenre({ id: null, ...g })}
+            />
           </DetailRow>
 
           <DetailBlock
@@ -548,7 +556,10 @@ export default function PlansPage({
               ? <TagList tags={tags} ids={editing.tagIds} />
               : <span className="summary">なし</span>}
           >
-            <TagPicker tags={tags} value={editing.tagIds} onChange={ids => setEditing({ ...editing, tagIds: ids })} />
+            <TagPicker
+              tags={tags} value={editing.tagIds} onChange={ids => setEditing({ ...editing, tagIds: ids })}
+              accent={theme.accent} onCreate={t => onSaveTag({ id: null, name: t.name, color: t.color, icon: '' })}
+            />
           </DetailBlock>
 
           <DetailBlock

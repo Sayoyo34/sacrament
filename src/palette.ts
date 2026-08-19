@@ -10,3 +10,16 @@ export const ICONS = [
   '📚', '💊', '👕', '☕', '🎤', '🎬', '✈️', '🐾',
   '🔥', '🐷', '⭐', '🎯',
 ]
+
+/** ジャンルは一覧やグラフの凡例など狭い場所に出るため短め、タグは推し名など多少長くても遊べるように広め */
+export const GENRE_NAME_MAX = 8
+export const TAG_NAME_MAX = 20
+
+/**
+ * ジャンル/タグの色をそのまま文字色（や、白文字を乗せる背景）に使うと、
+ * 薄すぎる色を選んだ時にほぼ読めなくなる。黒へ45%までしか寄せないことで、
+ * 自由入力の白に近い色を選んだ最悪ケースでもコントラスト比 4.5:1 を確保する。
+ */
+export function readableColor(color: string) {
+  return `color-mix(in srgb, ${color} 45%, #000)`
+}

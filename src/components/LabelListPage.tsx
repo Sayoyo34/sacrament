@@ -4,12 +4,8 @@ import DetailModal, { DetailBlock, DetailRow } from './DetailModal'
 import EditableList, { EditToolbar, ReorderButton, type EditRow } from './EditableList'
 import { useEditSession } from '../useEditSession'
 import { ColorSwatches, IconSwatches } from './Swatches'
-import { ICONS, PALETTE } from '../palette'
+import { GENRE_NAME_MAX, ICONS, PALETTE, readableColor, TAG_NAME_MAX } from '../palette'
 import { firstError, maxLength, notDuplicated, required } from '../validation'
-
-/** ジャンルは一覧やグラフの凡例など狭い場所に出るため短め、タグは推し名など多少長くても遊べるように広め */
-const GENRE_NAME_MAX = 8
-const TAG_NAME_MAX = 20
 
 export interface LabelItem {
   id: string
@@ -80,7 +76,7 @@ export default function LabelListPage({
         {withIcon ? it.icon : ''}
       </span>
       <span className="row-main">
-        <span className="row-title" style={{ color: it.color }}>{prefix}{it.name}</span>
+        <span className="row-title" style={{ color: readableColor(it.color) }}>{prefix}{it.name}</span>
       </span>
     </>
   )
@@ -185,7 +181,7 @@ export default function LabelListPage({
           </DetailBlock>
 
           <DetailRow icon="👀" label="表示例" value={null}>
-            <span className="detail-value" style={{ color: draft.color, fontFamily: 'inherit' }}>
+            <span className="detail-value" style={{ color: readableColor(draft.color), fontFamily: 'inherit' }}>
               {prefix}{draft.name || '（名前未入力）'}
             </span>
           </DetailRow>

@@ -3,10 +3,12 @@ import type { ActiveTimer, Genre, GoalDraft, GoalRow, SavingsEvent, Task, TaskRe
 import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
 import { GenreDot, GenreSelect } from '../components/Pickers'
+import type { LabelDraft } from '../components/LabelListPage'
 import EditableList, { EditToolbar, ReorderButton, type EditRow } from '../components/EditableList'
 import TimerOverlay from '../components/TimerOverlay'
 import { useEditSession } from '../useEditSession'
 import { ColorSwatches, IconSwatches } from '../components/Swatches'
+import { readableColor } from '../palette'
 import TopTabs from '../components/TopTabs'
 import { themeOf } from '../theme'
 import { monthLabel, monthOf, recentDays, thisMonth, todayStr, yen } from '../utils'
@@ -51,13 +53,14 @@ interface Props {
   onAddSavings: (draft: SavingsDraft) => void
   onRemoveSavingsEvent: (id: string) => void
   onAssignSavings: (eventIds: string[], goalId: string) => void
+  onSaveGenre: (draft: LabelDraft) => string
 }
 
 export default function SavingsPage({
   tasks, savingsEvents, genres, goalRows, savingsEarned, savingsWithdrawn,
   onSaveTask, onRemoveTask, onApplyTaskEdit,
   onCompleteTask, onUncompleteTask, onSaveGoal, onRemoveGoals, onApplyGoalEdit,
-  onAddSavings, onRemoveSavingsEvent, onAssignSavings,
+  onAddSavings, onRemoveSavingsEvent, onAssignSavings, onSaveGenre,
 }: Props) {
   const savingsKept = savingsEarned - savingsWithdrawn
   const theme = themeOf('savings')
@@ -348,7 +351,7 @@ export default function SavingsPage({
           </span>
         </span>
         {g.targetAmount > 0 && (
-          <span className="row-amount" style={{ color: g.color }}>{Math.round(ratio * 100)}%</span>
+          <span className="row-amount" style={{ color: readableColor(g.color) }}>{Math.round(ratio * 100)}%</span>
         )}
       </>
     )
@@ -631,7 +634,10 @@ export default function SavingsPage({
               </ReadValue>
             }
           >
-            <GenreSelect genres={genres} value={draft.genreId} onChange={v => setDraft({ ...draft, genreId: v })} />
+            <GenreSelect
+              genres={genres} value={draft.genreId} onChange={v => setDraft({ ...draft, genreId: v })}
+              accent={theme.accent} onCreate={g => onSaveGenre({ id: null, ...g })}
+            />
           </DetailRow>
 
           <DetailRow
