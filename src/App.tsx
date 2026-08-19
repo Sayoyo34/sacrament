@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import type { Session } from '@supabase/supabase-js'
 import type { Genre, Goal, GoalDraft, GoalRow, LedgerEntry, PlanItem, SavingsEvent, Tag, Task, Wallet } from './types'
 import LedgerPage, { type EntryDraft, type WalletDraft } from './pages/LedgerPage'
 import PlansPage, { type PlanDraft } from './pages/PlansPage'
@@ -10,6 +11,8 @@ import type { LabelDraft } from './components/LabelListPage'
 import { DEFAULT_GENRES, load, resetAll, save } from './storage'
 import type { Page } from './theme'
 import { generateId, todayStr } from './utils'
+import { hasSupabase, supabase } from './supabaseClient'
+import { pullCloudState, pushCloudState, subscribeCloudState, type AppData } from './cloudSync'
 import './App.css'
 
 export default function App() {
@@ -32,6 +35,84 @@ export default function App() {
   useEffect(() => { save('goals', goals) }, [goals])
   useEffect(() => { save('genres', genres) }, [genres])
   useEffect(() => { save('tags', tags) }, [tags])
+
+  // ── クラウド同期（任意ログイン） ─────────
+  const [session, setSession] = useState<Session | null>(null)
+  // 直近でクラウドと一致が取れているデータのJSON。pull/pushの度に更新し、
+  // 変化していないのに書き戻す（＝他端末との無限ping-pong）のを防ぐ
+  const lastSyncedRef = useRef<string>('')
+
+  function hydrateFromCloud(cloud: AppData) {
+    setWallets(cloud.wallets)
+    setEntries(cloud.entries)
+    setPlanItems(cloud.planItems)
+    setTasks(cloud.tasks)
+    setSavingsEvents(cloud.savingsEvents)
+    setGoals(cloud.goals)
+    setGenres(cloud.genres)
+    setTags(cloud.tags)
+  }
+
+  useEffect(() => {
+    if (!hasSupabase) return
+    supabase.auth.getSession().then(({ data }) => setSession(data.session))
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s))
+    return () => sub.subscription.unsubscribe()
+  }, [])
+
+  // ログイン時: クラウドにデータがあれば取り込み、無ければ（初回ログイン）今のローカルデータを初期値として送る
+  useEffect(() => {
+    if (!hasSupabase || !session) return
+    let cancelled = false
+    ;(async () => {
+      const cloud = await pullCloudState(session.user.id)
+      if (cancelled) return
+      if (cloud) {
+        lastSyncedRef.current = JSON.stringify(cloud)
+        hydrateFromCloud(cloud)
+      } else {
+        const local: AppData = { wallets, entries, planItems, tasks, savingsEvents, goals, genres, tags }
+        lastSyncedRef.current = JSON.stringify(local)
+        await pushCloudState(session.user.id, local)
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session])
+
+  // 他端末での変更をリアルタイムに反映
+  useEffect(() => {
+    if (!hasSupabase || !session) return
+    return subscribeCloudState(session.user.id, cloud => {
+      lastSyncedRef.current = JSON.stringify(cloud)
+      hydrateFromCloud(cloud)
+    })
+  }, [session])
+
+  // ローカルの変更をクラウドへ反映（デバウンス。前回同期分と同じなら送らない）
+  useEffect(() => {
+    if (!hasSupabase || !session) return
+    const data: AppData = { wallets, entries, planItems, tasks, savingsEvents, goals, genres, tags }
+    const json = JSON.stringify(data)
+    if (json === lastSyncedRef.current) return
+    const timer = setTimeout(() => {
+      lastSyncedRef.current = json
+      pushCloudState(session.user.id, data).catch(() => {})
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [session, wallets, entries, planItems, tasks, savingsEvents, goals, genres, tags])
+
+  async function signInWithEmail(email: string): Promise<string | null> {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin },
+    })
+    return error ? error.message : null
+  }
+
+  function signOut() {
+    supabase.auth.signOut()
+  }
 
   // ── 家計簿 ─────────────────────────────
   function saveEntry(d: EntryDraft) {
@@ -467,6 +548,10 @@ export default function App() {
             onRemoveTags={removeTags}
             onApplyTagEdit={applyTagEdit}
             onReset={handleReset}
+            hasSupabase={hasSupabase}
+            session={session}
+            onSignIn={signInWithEmail}
+            onSignOut={signOut}
           />
         )}
       </div>
