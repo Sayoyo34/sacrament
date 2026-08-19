@@ -1,4 +1,8 @@
+import { useState } from 'react'
 import type { Genre, Tag } from '../types'
+
+/** 一度に並べるタグ数の上限。選択中のものは超えていても必ず出す */
+const TAG_FILTER_LIMIT = 8
 
 /**
  * 推しカラーを読みやすい濃さに揃える。
@@ -58,19 +62,26 @@ export function TagPicker({ tags, value, onChange }: {
 
 /**
  * 一覧を絞り込むためのタグ選択。
- * 複数選ぶと AND 条件（#アイナナ かつ #遠征）で絞り込む。
+ * 複数選ぶと AND 条件（#推しの名前 かつ #遠征）で絞り込む。
  */
 export function TagFilter({ tags, selected, onChange }: {
   tags: Tag[]
   selected: string[]
   onChange: (ids: string[]) => void
 }) {
+  const [expanded, setExpanded] = useState(false)
   if (tags.length === 0) return null
+
+  // タグが増えても一覧が埋まらないよう、先頭 TAG_FILTER_LIMIT 件＋選択中のものだけ出す
+  const firstN = tags.slice(0, TAG_FILTER_LIMIT)
+  const extraSelected = tags.slice(TAG_FILTER_LIMIT).filter(t => selected.includes(t.id))
+  const visible = expanded ? tags : [...firstN, ...extraSelected]
+  const hiddenCount = tags.length - visible.length
 
   return (
     <div className="tag-filter">
       <div className="tag-picker">
-        {tags.map(t => {
+        {visible.map(t => {
           const on = selected.includes(t.id)
           return (
             <button
@@ -83,6 +94,12 @@ export function TagFilter({ tags, selected, onChange }: {
             </button>
           )
         })}
+        {hiddenCount > 0 && (
+          <button className="tag-chip tag-more" onClick={() => setExpanded(true)}>+{hiddenCount}件</button>
+        )}
+        {expanded && tags.length > TAG_FILTER_LIMIT && (
+          <button className="tag-chip tag-more" onClick={() => setExpanded(false)}>たたむ</button>
+        )}
         {selected.length > 0 && (
           <button className="tag-chip tag-clear" onClick={() => onChange([])}>クリア</button>
         )}

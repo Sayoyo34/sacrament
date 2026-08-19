@@ -9,7 +9,7 @@ import { daysCounted, matchesTags, monthLabel, monthOf, recentMonths, thisMonth,
 type Tab = 'expense' | 'savings'
 type Span = 'month' | 'year' | 'all'
 
-const UNSET_COLOR = '#cbd5e1'
+const UNSET_COLOR = '#a8a29e'
 
 interface Props {
   entries: LedgerEntry[]

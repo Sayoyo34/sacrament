@@ -13,8 +13,8 @@ interface PageTheme {
  * このアプリで色に意味を持たせるのはジャンルだけにして、そちらを目立たせる。
  * 変えるならここ1箇所でよい（index.css の --accent も揃えること）。
  */
-export const ACCENT = '#7c6bd0'
-export const ACCENT_SOFT = '#e2dcf7'
+export const ACCENT = '#8a5a3b'
+export const ACCENT_SOFT = '#f0e6da'
 
 /** ボトムナビの並び順。現在地は色ではなくアイコンとラベルで示す */
 export const PAGES: { id: Page; theme: PageTheme }[] = [

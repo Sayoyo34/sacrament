@@ -12,7 +12,7 @@ export interface Genre {
   icon: string;       // 絵文字
 }
 
-/** 横断フィルタ用のラベル。1項目に複数付く（#推し活 #アイナナ など） */
+/** 横断フィルタ用のラベル。1項目に複数付く（#推し活 #推しの名前 など） */
 export interface Tag {
   id: string;
   name: string;

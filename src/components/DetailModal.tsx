@@ -13,6 +13,7 @@ interface Props {
   /** 省略すると名前は編集不可（引く/戻す専用シートなど） */
   onNameChange?: (v: string) => void
   namePlaceholder?: string
+  nameMaxLength?: number
   onClose: () => void
   /**
    * 省略すると編集できないシートになる（閲覧のみ）。
@@ -31,7 +32,7 @@ interface Props {
  * まず閲覧モードで開き、「編集」を押して初めて書き換えられる。
  */
 export default function DetailModal({
-  icon, color, name, startInEdit, onNameChange, namePlaceholder,
+  icon, color, name, startInEdit, onNameChange, namePlaceholder, nameMaxLength,
   onClose, onSave, onDelete, error, children,
 }: Props) {
   const [mode, setMode] = useState<Mode>(startInEdit ? 'edit' : 'view')
@@ -69,6 +70,7 @@ export default function DetailModal({
                 value={name}
                 onChange={e => onNameChange(e.target.value)}
                 placeholder={namePlaceholder ?? '名前'}
+                maxLength={nameMaxLength}
               />
             ) : (
               <span className="detail-name detail-name-static">{name}</span>

@@ -31,6 +31,10 @@ export function inRange(value: number, min: number, max: number, label: string):
   return () => value >= min && value <= max ? null : `${label}は${min}〜${max}の範囲で入力してください`
 }
 
+export function maxLength(value: string, max: number, label: string): Check {
+  return () => value.trim().length > max ? `${label}は${max}文字までです` : null
+}
+
 export function notDuplicated(name: string, existing: string[], label: string): Check {
   return () => existing.some(n => n === name.trim()) ? `同じ名前の${label}がすでにあります` : null
 }

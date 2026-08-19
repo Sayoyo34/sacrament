@@ -35,22 +35,12 @@
   display: flex;
   flex-direction: column;
   background: var(--app-bg);
-  animation: subpage-in 0.28s cubic-bezier(0.32, 0.72, 0, 1);
-  will-change: transform;
+  animation: timer-in 0.28s ease-out;
+  will-change: transform, opacity;
 }
 
 .subpage.exiting {
-  animation: subpage-out 0.24s cubic-bezier(0.32, 0.72, 0, 1) forwards;
-}
-
-@keyframes subpage-in {
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0); }
-}
-
-@keyframes subpage-out {
-  from { transform: translateX(0); }
-  to   { transform: translateX(100%); }
+  animation: timer-out 0.24s ease-in forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -129,8 +119,8 @@
   border-radius: 18px;
   padding: 1.1rem 1.25rem 1.25rem;
   margin-bottom: 1rem;
-  /* テーマ色（紫）の範囲だけで振る。ピンク寄りの端を残すとジャンル色と競合する */
-  background: linear-gradient(115deg, #e8dffa 0%, #d9cff5 55%, #cbd1f4 100%);
+  /* テーマ色（茶）の範囲だけで振る。ピンク寄りの端を残すとジャンル色と競合する */
+  background: linear-gradient(115deg, #f5e9da 0%, #ecd7bd 55%, #dfc3a0 100%);
   color: #1a1a2e;
 }
 
@@ -823,6 +813,12 @@
   color: var(--text);
 }
 
+.tag-chip.tag-more {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+
 /* ── Detail sheet（項目タップで開く詳細・編集） ── */
 .detail-sheet {
   background: var(--code-bg);
@@ -1359,16 +1355,79 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 }
 
 /* ── Timer ────────────────────────────── */
-.timer-display {
-  font-size: 3.2rem;
-  font-family: var(--mono);
-  letter-spacing: 4px;
-  color: var(--text-h);
-  text-align: center;
-  margin: 0.5rem 0 0.75rem;
+.timer-overlay {
+  position: fixed;
+  inset: 0;
+  max-width: 480px;
+  margin: 0 auto;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  animation: timer-in 0.28s ease-out;
+  will-change: transform, opacity;
 }
 
-.timer-controls { display: flex; gap: 0.5rem; justify-content: center; }
+.timer-overlay.exiting {
+  animation: timer-out 0.24s ease-in forwards;
+}
+
+@keyframes timer-in {
+  from { transform: translateX(28%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes timer-out {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(28%); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timer-overlay, .timer-overlay.exiting { animation-duration: 0.01s; }
+}
+
+.timer-overlay-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 2rem;
+}
+
+.timer-overlay-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-h);
+  text-align: center;
+}
+
+.timer-ring-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.timer-ring-time {
+  position: absolute;
+  font-size: 2.6rem;
+  font-family: var(--mono);
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--text-h);
+}
+
+.timer-overlay-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 260px;
+}
+
+.timer-overlay-controls button { padding: 0.75rem; font-size: 0.95rem; }
 
 /* ── Misc ─────────────────────────────── */
 .summary { font-size: 0.82rem; color: var(--text); }

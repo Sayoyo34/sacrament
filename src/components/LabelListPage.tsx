@@ -5,7 +5,11 @@ import EditableList, { EditToolbar, ReorderButton, type EditRow } from './Editab
 import { useEditSession } from '../useEditSession'
 import { ColorSwatches, IconSwatches } from './Swatches'
 import { ICONS, PALETTE } from '../palette'
-import { firstError, notDuplicated, required } from '../validation'
+import { firstError, maxLength, notDuplicated, required } from '../validation'
+
+/** ジャンルは一覧やグラフの凡例など狭い場所に出るため短め、タグは推し名など多少長くても遊べるように広め */
+const GENRE_NAME_MAX = 8
+const TAG_NAME_MAX = 20
 
 export interface LabelItem {
   id: string
@@ -43,6 +47,7 @@ export default function LabelListPage({
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [confirmSave, setConfirmSave] = useState(false)
   const session = useEditSession<LabelItem>()
+  const nameMax = withIcon ? GENRE_NAME_MAX : TAG_NAME_MAX
 
   function openNew() {
     setError('')
@@ -54,7 +59,7 @@ export default function LabelListPage({
     if (!draft) return false
     const name = draft.name.trim().replace(/^#/, '')
     const others = items.filter(i => i.id !== draft.id).map(i => i.name)
-    const err = firstError(required(name, '名前'), notDuplicated(name, others, kind))
+    const err = firstError(required(name, '名前'), maxLength(name, nameMax, '名前'), notDuplicated(name, others, kind))
     if (err) { setError(err); return false }
     onSave({ ...draft, name })
     setError('')
@@ -150,7 +155,8 @@ export default function LabelListPage({
           color={`${draft.color}55`}
           name={draft.name}
           onNameChange={v => setDraft({ ...draft, name: v })}
-          namePlaceholder={withIcon ? '例: 遠征費' : '例: アイナナ'}
+          namePlaceholder={withIcon ? '例: 遠征費' : '例: 推しの名前'}
+          nameMaxLength={nameMax}
           onClose={() => { setDraft(null); setError('') }}
           onSave={save}
           startInEdit={draft.id === null}

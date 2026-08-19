@@ -98,7 +98,7 @@ export default function MorePage({
         <SubPage title="タグ管理" accent={theme.accent} soft={theme.soft} onClose={() => setView('menu')}>
           <LabelListPage
             kind="タグ"
-            hint="1つの項目に何個でも付けられます。#アイナナ のように推し別・現場別で絞り込むのに使います。"
+            hint="1つの項目に何個でも付けられます。#推しの名前 など、推し別・現場別で絞り込むのに使います。"
             items={tags}
             withIcon={false}
             prefix="#"

@@ -3,8 +3,8 @@ import type { ActiveTimer, Genre, GoalDraft, GoalRow, SavingsEvent, Task, TaskRe
 import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
 import { GenreDot, GenreSelect } from '../components/Pickers'
-import InlineSave from '../components/InlineSave'
 import EditableList, { EditToolbar, ReorderButton, type EditRow } from '../components/EditableList'
+import TimerOverlay from '../components/TimerOverlay'
 import { useEditSession } from '../useEditSession'
 import { ColorSwatches, IconSwatches } from '../components/Swatches'
 import TopTabs from '../components/TopTabs'
@@ -53,12 +53,6 @@ interface Props {
   onAssignSavings: (eventIds: string[], goalId: string) => void
 }
 
-function fmt(seconds: number) {
-  const m = Math.floor(seconds / 60).toString().padStart(2, '0')
-  const s = (seconds % 60).toString().padStart(2, '0')
-  return `${m}:${s}`
-}
-
 export default function SavingsPage({
   tasks, savingsEvents, genres, goalRows, savingsEarned, savingsWithdrawn,
   onSaveTask, onRemoveTask, onApplyTaskEdit,
@@ -73,7 +67,6 @@ export default function SavingsPage({
   const [savingsError, setSavingsError] = useState('')
   const [deleteEvent, setDeleteEvent] = useState<SavingsEvent | null>(null)
   const [blockedEvent, setBlockedEvent] = useState<SavingsEvent | null>(null)
-  const [openGoalId, setOpenGoalId] = useState<string | null>(null)   // 貯めるパネルを開いている目標
   const [sorting, setSorting] = useState(false)                        // 振り分けシート
   const [sortPick, setSortPick] = useState<Set<string>>(new Set())
   const [sortGoalId, setSortGoalId] = useState('')
@@ -298,11 +291,6 @@ export default function SavingsPage({
     setSavingsError('')
   }
 
-  /** 行タップでその目標に貯める。記録の名目は目標名にしておく */
-  function saveToGoal(g: GoalRow, amount: number) {
-    onAddSavings({ amount, goalId: g.id, date: todayStr(), label: g.name })
-  }
-
   /** 消すと切り崩し済みの額を下回ってしまう記録は、残高がマイナスになるので消させない */
   function requestDeleteEvent(e: SavingsEvent) {
     const row = goalRows.find(g => g.id === e.goalId)
@@ -409,10 +397,24 @@ export default function SavingsPage({
   }
 
   const timerTask = tasks.find(t => t.id === timer?.taskId)
+  const timerGenre = genres.find(g => g.id === timerTask?.genreId)
   const draftGenre = genres.find(g => g.id === draft?.genreId)
 
   return (
     <div className="page">
+      {timer && timerTask && (
+        <TimerOverlay
+          taskName={timerTask.name}
+          remaining={timer.remaining}
+          totalSeconds={timer.totalSeconds}
+          paused={paused}
+          accent={timerGenre?.color ?? theme.accent}
+          soft={theme.soft}
+          onTogglePause={() => setPaused(p => !p)}
+          onCancel={() => { setTimer(null); setPaused(false) }}
+        />
+      )}
+
       <TopTabs
         tabs={[{ id: 'tasks' as Tab, label: 'タスク' }, { id: 'goals' as Tab, label: '貯金目標' }]}
         active={tab}
@@ -424,19 +426,6 @@ export default function SavingsPage({
       <div className="page-scroll">
         {tab === 'tasks' ? (
           <>
-            {timer && (
-              <div className="card" style={{ textAlign: 'center' }}>
-                <div className="summary">{timerTask?.name}</div>
-                <div className="timer-display">{fmt(timer.remaining)}</div>
-                <div className="timer-controls">
-                  <button style={{ background: theme.accent }} onClick={() => setPaused(p => !p)}>
-                    {paused ? '再開' : '一時停止'}
-                  </button>
-                  <button className="btn-sub" onClick={() => { setTimer(null); setPaused(false) }}>キャンセル</button>
-                </div>
-              </div>
-            )}
-
             {renderSection('daily', dailies, 'デイリーミッション', '毎日続けたいことを登録できます')}
             {renderSection('once', onces, 'タスク', '一度きりのタスクがありません')}
 
@@ -522,67 +511,20 @@ export default function SavingsPage({
               </p>
             ) : (
               <ul className="item-list">
-                {realGoals.map(g => {
-                  const open = openGoalId === g.id
-                  return (
-                    <li key={g.id}>
-                      <div
-                        className={`row-card${open ? ' expanded' : ''}`}
-                        style={open ? { borderColor: theme.accent } : undefined}
-                      >
-                        <button
-                          className="row-tap"
-                          onClick={() => setOpenGoalId(open ? null : g.id)}
-                        >
-                          {goalBody(g)}
-                        </button>
-                        <button
-                          className="row-gear"
-                          aria-label={`${g.name}の設定`}
-                          title="設定"
-                          onClick={() => {
-                            setGoalError('')
-                            setGoalDraft({ id: g.id, name: g.name, icon: g.icon, color: g.color, targetAmount: g.targetAmount })
-                          }}
-                        >
-                          ⚙
-                        </button>
-                      </div>
-
-                      {open && (
-                        <InlineSave
-                          goal={g}
-                          accent={theme.accent}
-                          onSave={amount => saveToGoal(g, amount)}
-                          onClose={() => setOpenGoalId(null)}
-                        >
-                          {recentOf(g.id).length > 0 && (
-                            <div className="inline-recent">
-                              <span className="inline-recent-label">直近の記録</span>
-                              {recentOf(g.id).map(e => (
-                                <div className="inline-recent-row" key={e.id}>
-                                  <span className="inline-recent-name">{e.label}</span>
-                                  <span className="inline-recent-date">{e.date}</span>
-                                  <span className="inline-recent-amount">+¥{e.amount.toLocaleString()}</span>
-                                  {e.taskId === '' ? (
-                                    <button
-                                      className="link-btn"
-                                      onClick={() => requestDeleteEvent(e)}
-                                    >
-                                      取り消す
-                                    </button>
-                                  ) : (
-                                    <span className="inline-recent-lock" title="タスクの達成を取り消すと戻ります">タスク</span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </InlineSave>
-                      )}
-                    </li>
-                  )
-                })}
+                {realGoals.map(g => (
+                  <li key={g.id}>
+                    <button
+                      className="row-card"
+                      onClick={() => {
+                        setGoalError('')
+                        setGoalDraft({ id: g.id, name: g.name, icon: g.icon, color: g.color, targetAmount: g.targetAmount })
+                      }}
+                    >
+                      {goalBody(g)}
+                      <span className="row-chevron">›</span>
+                    </button>
+                  </li>
+                ))}
               </ul>
             )}
 
@@ -601,8 +543,8 @@ export default function SavingsPage({
             )}
 
             <p className="summary" style={{ textAlign: 'center', padding: '1rem 0' }}>
-              目標をタップすると貯められます。切り崩しは「予定 &gt; 計算」タブ、
-              記録の全体は「分析 &gt; 貯金履歴」から見られます
+              貯めるときは¥ボタンから。目標をタップすると詳細や直近の記録が見られます。
+              切り崩しは「予定 &gt; 計算」タブ、記録の全体は「分析 &gt; 貯金履歴」から見られます
             </p>
           </>
         )}
@@ -760,6 +702,26 @@ export default function SavingsPage({
                   <DetailRow icon="✂️" label="切り崩し済み" value={<ReadValue>{yen(row.withdrawn)}</ReadValue>}>
                     <span className="detail-value">{yen(row.withdrawn)}</span>
                   </DetailRow>
+                )}
+                {recentOf(row.id).length > 0 && (
+                  <DetailBlock icon="🕒" label="直近の記録">
+                    <div className="inline-recent">
+                      {recentOf(row.id).map(e => (
+                        <div className="inline-recent-row" key={e.id}>
+                          <span className="inline-recent-name">{e.label}</span>
+                          <span className="inline-recent-date">{e.date}</span>
+                          <span className="inline-recent-amount">+¥{e.amount.toLocaleString()}</span>
+                          {e.taskId === '' ? (
+                            <button className="link-btn" onClick={() => requestDeleteEvent(e)}>
+                              取り消す
+                            </button>
+                          ) : (
+                            <span className="inline-recent-lock" title="タスクの達成を取り消すと戻ります">タスク</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </DetailBlock>
                 )}
               </>
             )
