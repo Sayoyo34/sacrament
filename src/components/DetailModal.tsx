@@ -45,7 +45,8 @@ export default function DetailModal({
       sheetClassName="detail-sheet"
       overlayClassName="detail-overlay"
       showHandle={false}
-      dragExcludeSelector=".detail-body"
+      /* 編集中は入力欄や独自スクロールと競合するためヘッダーからのみ、閲覧中はどこからでも閉じられる */
+      dragExcludeSelector={editing ? '.detail-body' : undefined}
     >
       {requestClose => (
         <>
