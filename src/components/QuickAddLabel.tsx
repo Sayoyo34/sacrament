@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Sheet from './Sheet'
 import { ColorSwatches, IconSwatches } from './Swatches'
 import { ICONS, PALETTE } from '../palette'
 import { firstError, maxLength, notDuplicated, required } from '../validation'
@@ -36,43 +37,44 @@ export default function QuickAddLabel({ kind, withIcon, nameMax, existingNames, 
   }
 
   return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-handle" />
-        <div className="modal-title">{kind}を追加</div>
+    <Sheet onClose={onCancel} sheetClassName="modal">
+      {requestClose => (
+        <>
+          <div className="modal-title">{kind}を追加</div>
 
-        {error && <p className="form-error" role="alert">{error}</p>}
+          {error && <p className="form-error" role="alert">{error}</p>}
 
-        <div className="form-row">
-          <label htmlFor="quick-add-name">名前</label>
-          <input
-            id="quick-add-name"
-            type="text"
-            value={name}
-            onChange={e => { setName(e.target.value); setError('') }}
-            placeholder={withIcon ? '例: 遠征費' : '例: 推しの名前'}
-            maxLength={nameMax}
-            autoFocus
-          />
-        </div>
-
-        {withIcon && (
           <div className="form-row">
-            <label>アイコン</label>
-            <IconSwatches value={icon} onChange={setIcon} accent={accent} />
+            <label htmlFor="quick-add-name">名前</label>
+            <input
+              id="quick-add-name"
+              type="text"
+              value={name}
+              onChange={e => { setName(e.target.value); setError('') }}
+              placeholder={withIcon ? '例: 遠征費' : '例: 推しの名前'}
+              maxLength={nameMax}
+              autoFocus
+            />
           </div>
-        )}
 
-        <div className="form-row">
-          <label>色</label>
-          <ColorSwatches value={color} onChange={setColor} />
-        </div>
+          {withIcon && (
+            <div className="form-row">
+              <label>アイコン</label>
+              <IconSwatches value={icon} onChange={setIcon} accent={accent} />
+            </div>
+          )}
 
-        <div className="form-actions">
-          <button className="btn-sub" onClick={onCancel}>キャンセル</button>
-          <button style={{ background: accent }} onClick={submit}>追加する</button>
-        </div>
-      </div>
-    </div>
+          <div className="form-row">
+            <label>色</label>
+            <ColorSwatches value={color} onChange={setColor} />
+          </div>
+
+          <div className="form-actions">
+            <button className="btn-sub" onClick={requestClose}>キャンセル</button>
+            <button style={{ background: accent }} onClick={submit}>追加する</button>
+          </div>
+        </>
+      )}
+    </Sheet>
   )
 }

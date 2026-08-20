@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
+import Sheet from './Sheet'
 
 type Mode = 'view' | 'edit'
 
@@ -39,51 +40,59 @@ export default function DetailModal({
   const editing = mode === 'edit'
 
   return (
-    <div className="modal-overlay detail-overlay" onClick={onClose}>
-      <div className="detail-sheet" onClick={e => e.stopPropagation()}>
-        <div className="detail-head" style={{ background: color }}>
-          <div className="detail-head-bar">
-            <button className="icon-btn" onClick={onClose} aria-label="閉じる">✕</button>
-            <div className="detail-head-actions">
-              {onDelete && (
-                <button className="icon-btn" onClick={onDelete} aria-label="削除">🗑</button>
-              )}
-              {onSave && (
-                editing
-                  ? (
-                    <button
-                      className="detail-save"
-                      onClick={() => { if (onSave() === true) setMode('view') }}
-                    >
-                      保存
-                    </button>
-                  )
-                  : <button className="detail-save" onClick={() => setMode('edit')}>編集</button>
+    <Sheet
+      onClose={onClose}
+      sheetClassName="detail-sheet"
+      overlayClassName="detail-overlay"
+      showHandle={false}
+      dragExcludeSelector=".detail-body"
+    >
+      {requestClose => (
+        <>
+          <div className="detail-head" style={{ background: color }}>
+            <div className="detail-head-bar">
+              <button className="icon-btn" onClick={requestClose} aria-label="閉じる">✕</button>
+              <div className="detail-head-actions">
+                {onDelete && (
+                  <button className="icon-btn" onClick={onDelete} aria-label="削除">🗑</button>
+                )}
+                {onSave && (
+                  editing
+                    ? (
+                      <button
+                        className="detail-save"
+                        onClick={() => { if (onSave() === true) setMode('view') }}
+                      >
+                        保存
+                      </button>
+                    )
+                    : <button className="detail-save" onClick={() => setMode('edit')}>編集</button>
+                )}
+              </div>
+            </div>
+            <div className="detail-title-row">
+              <span className="detail-icon">{icon}</span>
+              {editing && onNameChange ? (
+                <input
+                  className="detail-name"
+                  value={name}
+                  onChange={e => onNameChange(e.target.value)}
+                  placeholder={namePlaceholder ?? '名前'}
+                  maxLength={nameMaxLength}
+                />
+              ) : (
+                <span className="detail-name detail-name-static">{name}</span>
               )}
             </div>
           </div>
-          <div className="detail-title-row">
-            <span className="detail-icon">{icon}</span>
-            {editing && onNameChange ? (
-              <input
-                className="detail-name"
-                value={name}
-                onChange={e => onNameChange(e.target.value)}
-                placeholder={namePlaceholder ?? '名前'}
-                maxLength={nameMaxLength}
-              />
-            ) : (
-              <span className="detail-name detail-name-static">{name}</span>
-            )}
-          </div>
-        </div>
 
-        <div className="detail-body">
-          {editing && error && <p className="form-error" role="alert">{error}</p>}
-          <DetailMode.Provider value={mode}>{children}</DetailMode.Provider>
-        </div>
-      </div>
-    </div>
+          <div className="detail-body">
+            {editing && error && <p className="form-error" role="alert">{error}</p>}
+            <DetailMode.Provider value={mode}>{children}</DetailMode.Provider>
+          </div>
+        </>
+      )}
+    </Sheet>
   )
 }
 

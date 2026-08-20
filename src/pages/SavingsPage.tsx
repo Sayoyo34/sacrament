@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ActiveTimer, Genre, GoalDraft, GoalRow, SavingsEvent, Task, TaskRepeat } from '../types'
 import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
+import Sheet from '../components/Sheet'
 import { GenreDot, GenreSelect } from '../components/Pickers'
 import type { LabelDraft } from '../components/LabelListPage'
 import EditableList, { EditToolbar, ReorderButton, type EditRow } from '../components/EditableList'
@@ -776,146 +777,148 @@ export default function SavingsPage({
       )}
 
       {savingsDraft && (
-        <div className="modal-overlay" onClick={() => { setSavingsDraft(null); setSavingsError('') }}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-handle" />
-            <div className="modal-title">貯金を追加</div>
+        <Sheet onClose={() => { setSavingsDraft(null); setSavingsError('') }} sheetClassName="modal">
+          {requestClose => (
+            <>
+              <div className="modal-title">貯金を追加</div>
 
-            {savingsError && <p className="form-error" role="alert">{savingsError}</p>}
+              {savingsError && <p className="form-error" role="alert">{savingsError}</p>}
 
-            <div className="form-row">
-              <label htmlFor="sv-amount">金額</label>
-              <input
-                id="sv-amount"
-                type="number"
-                inputMode="numeric"
-                value={savingsDraft.amount || ''}
-                onChange={e => setSavingsDraft({ ...savingsDraft, amount: Number(e.target.value) })}
-                placeholder="0"
-                min={0}
-                autoFocus
-              />
-            </div>
+              <div className="form-row">
+                <label htmlFor="sv-amount">金額</label>
+                <input
+                  id="sv-amount"
+                  type="number"
+                  inputMode="numeric"
+                  value={savingsDraft.amount || ''}
+                  onChange={e => setSavingsDraft({ ...savingsDraft, amount: Number(e.target.value) })}
+                  placeholder="0"
+                  min={0}
+                  autoFocus
+                />
+              </div>
 
-            <div className="form-row">
-              <label htmlFor="sv-goal">行き先</label>
-              <select
-                id="sv-goal"
-                value={savingsDraft.goalId}
-                onChange={e => setSavingsDraft({ ...savingsDraft, goalId: e.target.value })}
-              >
-                <option value="">あとで決める</option>
-                {realGoals.map(g => <option key={g.id} value={g.id}>{g.icon} {g.name}</option>)}
-              </select>
-            </div>
+              <div className="form-row">
+                <label htmlFor="sv-goal">行き先</label>
+                <select
+                  id="sv-goal"
+                  value={savingsDraft.goalId}
+                  onChange={e => setSavingsDraft({ ...savingsDraft, goalId: e.target.value })}
+                >
+                  <option value="">あとで決める</option>
+                  {realGoals.map(g => <option key={g.id} value={g.id}>{g.icon} {g.name}</option>)}
+                </select>
+              </div>
 
-            <div className="form-row">
-              <label htmlFor="sv-date">日付</label>
-              <input
-                id="sv-date"
-                type="date"
-                value={savingsDraft.date}
-                onChange={e => setSavingsDraft({ ...savingsDraft, date: e.target.value })}
-              />
-            </div>
+              <div className="form-row">
+                <label htmlFor="sv-date">日付</label>
+                <input
+                  id="sv-date"
+                  type="date"
+                  value={savingsDraft.date}
+                  onChange={e => setSavingsDraft({ ...savingsDraft, date: e.target.value })}
+                />
+              </div>
 
-            <div className="form-row">
-              <label htmlFor="sv-label">名目</label>
-              <input
-                id="sv-label"
-                type="text"
-                value={savingsDraft.label}
-                onChange={e => setSavingsDraft({ ...savingsDraft, label: e.target.value })}
-                placeholder="給料天引き"
-              />
-            </div>
+              <div className="form-row">
+                <label htmlFor="sv-label">名目</label>
+                <input
+                  id="sv-label"
+                  type="text"
+                  value={savingsDraft.label}
+                  onChange={e => setSavingsDraft({ ...savingsDraft, label: e.target.value })}
+                  placeholder="給料天引き"
+                />
+              </div>
 
-            <p className="summary" style={{ lineHeight: 1.7 }}>
-              口座のお金は動きません。「使えるお金」から取り置くだけです。
-            </p>
+              <p className="summary" style={{ lineHeight: 1.7 }}>
+                口座のお金は動きません。「使えるお金」から取り置くだけです。
+              </p>
 
-            <div className="form-actions">
-              <button className="btn-sub" onClick={() => { setSavingsDraft(null); setSavingsError('') }}>
-                キャンセル
-              </button>
-              <button style={{ background: theme.accent }} onClick={submitSavings}>追加する</button>
-            </div>
-          </div>
-        </div>
+              <div className="form-actions">
+                <button className="btn-sub" onClick={requestClose}>
+                  キャンセル
+                </button>
+                <button style={{ background: theme.accent }} onClick={submitSavings}>追加する</button>
+              </div>
+            </>
+          )}
+        </Sheet>
       )}
 
       {sorting && (
-        <div className="modal-overlay" onClick={() => setSorting(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-handle" />
-            <div className="modal-title">行き先を決める</div>
+        <Sheet onClose={() => setSorting(false)} sheetClassName="modal">
+          {requestClose => (
+            <>
+              <div className="modal-title">行き先を決める</div>
 
-            {sortError && <p className="form-error" role="alert">{sortError}</p>}
+              {sortError && <p className="form-error" role="alert">{sortError}</p>}
 
-            {realGoals.length === 0 ? (
-              <>
-                <p className="summary" style={{ lineHeight: 1.8, marginBottom: '1rem' }}>
-                  振り分け先の目標がまだありません。先に目標を作ってください。
-                </p>
-                <div className="form-actions">
-                  <button className="btn-sub" onClick={() => setSorting(false)}>閉じる</button>
-                  <button
-                    style={{ background: theme.accent }}
-                    onClick={() => {
-                      setSorting(false)
-                      setGoalError('')
-                      setGoalDraft({ id: null, name: '', icon: '🐷', color: '#f472b6', targetAmount: 0 })
-                    }}
-                  >
-                    目標を作る
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="sort-list">
-                  {inboxEvents.map(e => {
-                    const on = sortPick.has(e.id)
-                    return (
-                      <button
-                        key={e.id}
-                        className={`sort-row${on ? ' on' : ''}`}
-                        style={on ? { borderColor: theme.accent } : undefined}
-                        onClick={() => togglePick(e.id)}
-                      >
-                        <span
-                          className={`sort-check${on ? ' on' : ''}`}
-                          style={on ? { background: theme.accent, borderColor: theme.accent } : undefined}
+              {realGoals.length === 0 ? (
+                <>
+                  <p className="summary" style={{ lineHeight: 1.8, marginBottom: '1rem' }}>
+                    振り分け先の目標がまだありません。先に目標を作ってください。
+                  </p>
+                  <div className="form-actions">
+                    <button className="btn-sub" onClick={requestClose}>閉じる</button>
+                    <button
+                      style={{ background: theme.accent }}
+                      onClick={() => {
+                        setSorting(false)
+                        setGoalError('')
+                        setGoalDraft({ id: null, name: '', icon: '🐷', color: '#f472b6', targetAmount: 0 })
+                      }}
+                    >
+                      目標を作る
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="sort-list">
+                    {inboxEvents.map(e => {
+                      const on = sortPick.has(e.id)
+                      return (
+                        <button
+                          key={e.id}
+                          className={`sort-row${on ? ' on' : ''}`}
+                          style={on ? { borderColor: theme.accent } : undefined}
+                          onClick={() => togglePick(e.id)}
                         >
-                          {on ? '✓' : ''}
-                        </span>
-                        <span className="sort-main">
-                          <span className="sort-name">{e.label}</span>
-                          <span className="sort-date">{e.date}</span>
-                        </span>
-                        <span className="sort-amount">¥{e.amount.toLocaleString()}</span>
-                      </button>
-                    )
-                  })}
-                </div>
+                          <span
+                            className={`sort-check${on ? ' on' : ''}`}
+                            style={on ? { background: theme.accent, borderColor: theme.accent } : undefined}
+                          >
+                            {on ? '✓' : ''}
+                          </span>
+                          <span className="sort-main">
+                            <span className="sort-name">{e.label}</span>
+                            <span className="sort-date">{e.date}</span>
+                          </span>
+                          <span className="sort-amount">¥{e.amount.toLocaleString()}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
 
-                <div className="form-row" style={{ marginTop: '0.9rem' }}>
-                  <label htmlFor="sort-goal">行き先</label>
-                  <select id="sort-goal" value={sortGoalId} onChange={e => { setSortGoalId(e.target.value); setSortError('') }}>
-                    {realGoals.map(g => <option key={g.id} value={g.id}>{g.icon} {g.name}</option>)}
-                  </select>
-                </div>
+                  <div className="form-row" style={{ marginTop: '0.9rem' }}>
+                    <label htmlFor="sort-goal">行き先</label>
+                    <select id="sort-goal" value={sortGoalId} onChange={e => { setSortGoalId(e.target.value); setSortError('') }}>
+                      {realGoals.map(g => <option key={g.id} value={g.id}>{g.icon} {g.name}</option>)}
+                    </select>
+                  </div>
 
-                <div className="form-actions">
-                  <button className="btn-sub" onClick={() => setSorting(false)}>キャンセル</button>
-                  <button style={{ background: theme.accent }} onClick={submitSorting}>
-                    {sortPick.size > 0 ? `${yen(pickedTotal)} を振り分ける` : '振り分ける'}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+                  <div className="form-actions">
+                    <button className="btn-sub" onClick={requestClose}>キャンセル</button>
+                    <button style={{ background: theme.accent }} onClick={submitSorting}>
+                      {sortPick.size > 0 ? `${yen(pickedTotal)} を振り分ける` : '振り分ける'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </Sheet>
       )}
 
       {deleteEvent && (
@@ -927,19 +930,20 @@ export default function SavingsPage({
       )}
 
       {blockedEvent && (
-        <div className="modal-overlay" onClick={() => setBlockedEvent(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-handle" />
-            <div className="modal-title">取り消せません</div>
-            <p style={{ fontSize: '0.9rem', color: 'var(--text-h)', lineHeight: 1.7, marginBottom: '1.25rem' }}>
-              この {yen(blockedEvent.amount)} を消すと、すでに切り崩した額を下回ってしまいます。
-              先に「予定 &gt; 計算」タブで切り崩しを戻してください。
-            </p>
-            <div className="form-actions">
-              <button className="btn-sub" onClick={() => setBlockedEvent(null)}>閉じる</button>
-            </div>
-          </div>
-        </div>
+        <Sheet onClose={() => setBlockedEvent(null)} sheetClassName="modal">
+          {requestClose => (
+            <>
+              <div className="modal-title">取り消せません</div>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-h)', lineHeight: 1.7, marginBottom: '1.25rem' }}>
+                この {yen(blockedEvent.amount)} を消すと、すでに切り崩した額を下回ってしまいます。
+                先に「予定 &gt; 計算」タブで切り崩しを戻してください。
+              </p>
+              <div className="form-actions">
+                <button className="btn-sub" onClick={requestClose}>閉じる</button>
+              </div>
+            </>
+          )}
+        </Sheet>
       )}
 
       {deleteGoal && (

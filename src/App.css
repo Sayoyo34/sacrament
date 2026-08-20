@@ -836,7 +836,11 @@
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
+  transform: translateY(100%);
+  transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1);
 }
+
+.detail-sheet.shown { transform: translateY(0); }
 
 .detail-head { padding: 0.9rem 1rem 1.2rem; flex-shrink: 0; }
 
@@ -1152,7 +1156,8 @@ input, select, textarea {
   border-radius: 8px;
   background: var(--bg);
   color: var(--text-h);
-  font-size: 0.9rem;
+  /* 16px未満だとiOS Safariがフォーカス時に画面を自動ズームしてしまうため固定値にする */
+  font-size: 16px;
   font-family: inherit;
   outline: none;
   transition: border-color 0.15s;
@@ -1221,7 +1226,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   align-items: flex-end;
   justify-content: center;
   z-index: 100;
+  opacity: 0;
+  transition: opacity 0.22s ease;
 }
+
+.modal-overlay.shown { opacity: 1; }
 
 /* 詳細シートは画面上端から余白を取って全高で開く（.modal-overlay より後に置いて上書き） */
 .modal-overlay.detail-overlay {
@@ -1236,7 +1245,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   width: 100%;
   max-width: 480px;
   box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
+  transform: translateY(100%);
+  transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1);
 }
+
+.modal.shown { transform: translateY(0); }
 
 .modal-handle {
   width: 36px;
