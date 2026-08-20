@@ -10,6 +10,7 @@ import { useEditSession } from '../useEditSession'
 import { ColorSwatches, IconSwatches } from '../components/Swatches'
 import { readableColor } from '../palette'
 import TopTabs from '../components/TopTabs'
+import { useSwipeTabs } from '../useSwipeNav'
 import { themeOf } from '../theme'
 import { monthLabel, monthOf, recentDays, thisMonth, todayStr, yen } from '../utils'
 import { firstError, notNegative, positive, required } from '../validation'
@@ -106,6 +107,8 @@ export default function SavingsPage({
     setConfirmGoalSave(false)
   }
   const [tab, setTab] = useState<Tab>('tasks')
+  function changeTab(t: Tab) { setTab(t); exitReorder(); goalSession.cancel() }
+  const swipe = useSwipeTabs(['tasks', 'goals'] as const, tab, changeTab)
   const [draft, setDraft] = useState<TaskDraft | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const [timer, setTimer] = useState<ActiveTimer | null>(null)
@@ -421,12 +424,12 @@ export default function SavingsPage({
       <TopTabs
         tabs={[{ id: 'tasks' as Tab, label: 'タスク' }, { id: 'goals' as Tab, label: '貯金目標' }]}
         active={tab}
-        onChange={t => { setTab(t); exitReorder(); goalSession.cancel() }}
+        onChange={changeTab}
         accent={theme.accent}
         soft={theme.soft}
       />
 
-      <div className="page-scroll">
+      <div className="page-scroll" {...swipe}>
         {tab === 'tasks' ? (
           <>
             {renderSection('daily', dailies, 'デイリーミッション', '毎日続けたいことを登録できます')}

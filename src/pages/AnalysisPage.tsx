@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Genre, LedgerEntry, SavingsEvent, Tag, Task } from '../types'
 import TopTabs from '../components/TopTabs'
+import { useSwipeTabs } from '../useSwipeNav'
 import { Bars, Donut, type Slice } from '../components/Charts'
 import { TagFilter } from '../components/Pickers'
 import { readableColor } from '../palette'
@@ -23,6 +24,7 @@ interface Props {
 export default function AnalysisPage({ entries, genres, tags, tasks, savingsEvents }: Props) {
   const theme = themeOf('analysis')
   const [tab, setTab] = useState<Tab>('expense')
+  const swipe = useSwipeTabs(['expense', 'savings'] as const, tab, setTab)
   const [month, setMonth] = useState(thisMonth())
   const [span, setSpan] = useState<Span>('month')
   const [year, setYear] = useState(yearOf(thisMonth()))
@@ -157,7 +159,7 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
         soft={theme.soft}
       />
 
-      <div className="page-scroll">
+      <div className="page-scroll" {...swipe}>
         {tab === 'expense' ? (
           <>
             {spanPicker}

@@ -9,6 +9,7 @@ import type { LabelDraft } from '../components/LabelListPage'
 import EditableList, { EditToolbar, ReorderButton, type EditRow } from '../components/EditableList'
 import { useEditSession } from '../useEditSession'
 import TopTabs from '../components/TopTabs'
+import { useSwipeTabs } from '../useSwipeNav'
 import { readableColor } from '../palette'
 import { themeOf } from '../theme'
 import { yen } from '../utils'
@@ -62,6 +63,14 @@ export default function PlansPage({
 }: Props) {
   const theme = themeOf('plans')
   const [tab, setTab] = useState<Tab>('list')
+  function changeTab(t: Tab) {
+    setTab(t)
+    setEditing(null)
+    setOpenId(null)
+    setPreview(null)
+    exitReorder()
+  }
+  const swipe = useSwipeTabs(['list', 'calc'] as const, tab, changeTab)
   const [editing, setEditing] = useState<PlanDraft | null>(null)   // 一覧タブ：内容の編集
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const [editError, setEditError] = useState('')
@@ -360,18 +369,12 @@ export default function PlansPage({
       <TopTabs
         tabs={[{ id: 'list' as Tab, label: '出費予定' }, { id: 'calc' as Tab, label: '計算' }]}
         active={tab}
-        onChange={t => {
-          setTab(t)
-          setEditing(null)
-          setOpenId(null)
-          setPreview(null)
-          exitReorder()
-        }}
+        onChange={changeTab}
         accent={theme.accent}
         soft={theme.soft}
       />
 
-      <div className="page-scroll">
+      <div className="page-scroll" {...swipe}>
         {tab === 'list' ? (
           <>
             {renderSection('once', once, '未定', 'まだ予定がありません')}

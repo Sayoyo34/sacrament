@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useSwipeNav } from '../useSwipeNav'
 
 interface Props {
   title: string
@@ -6,6 +7,9 @@ interface Props {
   soft: string
   /** 退出アニメーションが終わってから呼ばれる */
   onClose: () => void
+  /** 隣接する下位ページへの横スワイプ（例: ジャンル管理 ⇄ タグ管理） */
+  onSwipeLeft?: () => void
+  onSwipeRight?: () => void
   children: ReactNode
 }
 
@@ -13,7 +17,8 @@ interface Props {
  * タブの中を横にスライドして開く下位ページ。
  * ボトムナビはそのまま残り、左上の「‹」で元の一覧へ戻る。
  */
-export default function SubPage({ title, accent, soft, onClose, children }: Props) {
+export default function SubPage({ title, accent, soft, onClose, onSwipeLeft, onSwipeRight, children }: Props) {
+  const swipe = useSwipeNav({ onSwipeLeft, onSwipeRight })
   const [exiting, setExiting] = useState(false)
   const closed = useRef(false)
   const closeRef = useRef(onClose)
@@ -53,7 +58,7 @@ export default function SubPage({ title, accent, soft, onClose, children }: Prop
         <span />
       </div>
 
-      <div className="page-scroll">{children}</div>
+      <div className="page-scroll" {...swipe}>{children}</div>
     </div>
   )
 }

@@ -5,6 +5,7 @@ import ConfirmModal from '../components/ConfirmModal'
 import { GenreDot, GenreSelect, TagFilter, TagList, TagPicker } from '../components/Pickers'
 import type { LabelDraft } from '../components/LabelListPage'
 import TopTabs from '../components/TopTabs'
+import { useSwipeTabs } from '../useSwipeNav'
 import { themeOf } from '../theme'
 import { matchesTags, monthLabel, monthOf, thisMonth, todayStr, yen } from '../utils'
 import { firstError, positive, required, selected } from '../validation'
@@ -55,6 +56,7 @@ export default function LedgerPage({
 }: Props) {
   const theme = themeOf('ledger')
   const [tab, setTab] = useState<Tab>('ledger')
+  const swipe = useSwipeTabs(['ledger', 'wallet'] as const, tab, setTab)
   const [month, setMonth] = useState(thisMonth())
   const [draft, setDraft] = useState<EntryDraft | null>(null)
   const [walletDraft, setWalletDraft] = useState<WalletDraft | null>(null)
@@ -152,7 +154,7 @@ export default function LedgerPage({
         soft={theme.soft}
       />
 
-      <div className="page-scroll">
+      <div className="page-scroll" {...swipe}>
         {tab === 'ledger' ? (
           <>
             <div className="hero-card">
