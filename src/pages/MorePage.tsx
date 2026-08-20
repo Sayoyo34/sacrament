@@ -126,13 +126,7 @@ export default function MorePage({
       </div>
 
       {view === 'genres' && (
-        <SubPage
-          title="ジャンル管理"
-          accent={theme.accent}
-          soft={theme.soft}
-          onClose={() => setView('menu')}
-          onSwipeLeft={() => setView('tags')}
-        >
+        <SubPage title="ジャンル管理" accent={theme.accent} soft={theme.soft} onClose={() => setView('menu')}>
           <LabelListPage
             kind="ジャンル"
             hint="1つの項目に1つだけ付きます。ここで決めた色が一覧のアイコンと分析の円グラフに使われます。"
@@ -147,13 +141,7 @@ export default function MorePage({
       )}
 
       {view === 'tags' && (
-        <SubPage
-          title="タグ管理"
-          accent={theme.accent}
-          soft={theme.soft}
-          onClose={() => setView('menu')}
-          onSwipeRight={() => setView('genres')}
-        >
+        <SubPage title="タグ管理" accent={theme.accent} soft={theme.soft} onClose={() => setView('menu')}>
           <LabelListPage
             kind="タグ"
             hint="1つの項目に何個でも付けられます。#推しの名前 など、推し別・現場別で絞り込むのに使います。"

@@ -7,19 +7,16 @@ interface Props {
   soft: string
   /** 退出アニメーションが終わってから呼ばれる */
   onClose: () => void
-  /** 隣接する下位ページへの横スワイプ（例: ジャンル管理 ⇄ タグ管理） */
-  onSwipeLeft?: () => void
-  onSwipeRight?: () => void
   children: ReactNode
 }
 
 /**
  * タブの中を横にスライドして開く下位ページ。
- * ボトムナビはそのまま残り、左上の「‹」で元の一覧へ戻る。
+ * ボトムナビはそのまま残り、左上の「‹」または右スワイプで元の一覧へ戻る。
  */
-export default function SubPage({ title, accent, soft, onClose, onSwipeLeft, onSwipeRight, children }: Props) {
-  const swipe = useSwipeNav({ onSwipeLeft, onSwipeRight })
+export default function SubPage({ title, accent, soft, onClose, children }: Props) {
   const [exiting, setExiting] = useState(false)
+  const swipe = useSwipeNav({ onSwipeRight: () => setExiting(true) })
   const closed = useRef(false)
   const closeRef = useRef(onClose)
   closeRef.current = onClose
