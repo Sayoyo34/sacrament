@@ -44,6 +44,7 @@ interface Props {
   goalRows: GoalRow[]
   savingsEarned: number
   savingsWithdrawn: number
+  totalBalance: number
   onSaveTask: (draft: TaskDraft) => void
   onRemoveTask: (id: string) => void
   onApplyTaskEdit: (orderedIds: string[], removedIds: string[]) => void
@@ -59,7 +60,7 @@ interface Props {
 }
 
 export default function SavingsPage({
-  tasks, savingsEvents, genres, goalRows, savingsEarned, savingsWithdrawn,
+  tasks, savingsEvents, genres, goalRows, savingsEarned, savingsWithdrawn, totalBalance,
   onSaveTask, onRemoveTask, onApplyTaskEdit,
   onCompleteTask, onUncompleteTask, onSaveGoal, onRemoveGoals, onApplyGoalEdit,
   onAddSavings, onRemoveSavingsEvent, onAssignSavings, onSaveGenre,
@@ -72,6 +73,7 @@ export default function SavingsPage({
   const [savingsError, setSavingsError] = useState('')
   const [deleteEvent, setDeleteEvent] = useState<SavingsEvent | null>(null)
   const [blockedEvent, setBlockedEvent] = useState<SavingsEvent | null>(null)
+  const [breakdown, setBreakdown] = useState(false)                    // つもり貯金額の内訳
   const [sorting, setSorting] = useState(false)                        // 振り分けシート
   const [sortPick, setSortPick] = useState<Set<string>>(new Set())
   const [sortGoalId, setSortGoalId] = useState('')
@@ -156,6 +158,9 @@ export default function SavingsPage({
     .filter(e => monthOf(e.date) === thisMonth() && e.amount > 0)
     .reduce((s, e) => s + e.amount, 0)
 
+  // 実際の所持金のうち、つもり貯金として取り置いていない分
+  const freeBalance = totalBalance - savingsKept
+
   function isDone(t: Task) {
     return t.repeat === 'daily' ? t.completedDates.includes(today) : t.completedDates.length > 0
   }
@@ -194,31 +199,37 @@ export default function SavingsPage({
     setTimer({ taskId: t.id, totalSeconds: t.timerMinutes * 60, remaining: t.timerMinutes * 60 })
   }
 
-  /** 行の中身。並び替え中はハビットのドット列を隠す */
+  /**
+   * 行の中身。名前・タイマー・つもり貯金額を横に並べて1行に収め、
+   * 週のドット列は縦に積まず右端（達成ボタンの手前）に置く。
+   * 並び替え中はハンドルの場所を空けるためドット列を隠す。
+   */
   function taskBody(t: Task, compact: boolean) {
     const done = isDone(t)
     const daily = t.repeat === 'daily'
     return (
       <>
-        <GenreDot genres={genres} genreId={t.genreId} fallback={t.timerMinutes > 0 ? '⏱' : '📋'} />
-        <span className="row-main">
-          <span className={`row-title${done && !daily ? ' struck' : ''}`}>
-            {t.name}{t.timerMinutes > 0 ? ` (${t.timerMinutes}分)` : ''}
-          </span>
-          <span className="row-bonus">+ ¥{t.bonusAmount.toLocaleString()}</span>
-          {daily && !compact && (
-            <span className="habit-dots">
-              {week.map(d => (
+        <GenreDot genres={genres} genreId={t.genreId} fallback={t.timerMinutes > 0 ? '⏱' : '📋'} size={28} />
+        <span className="row-inline">
+          <span className={`row-title${done && !daily ? ' struck' : ''}`}>{t.name}</span>
+          {t.timerMinutes > 0 && <span className="row-chip">⏱{t.timerMinutes}分</span>}
+          {t.bonusAmount > 0 && <span className="row-bonus">+¥{t.bonusAmount.toLocaleString()}</span>}
+        </span>
+        {daily && !compact && (
+          <span className="habit-dots">
+            {week.map(d => {
+              const on = t.completedDates.includes(d)
+              return (
                 <span
                   key={d}
-                  className={`habit-dot${t.completedDates.includes(d) ? ' on' : ''}`}
-                  style={t.completedDates.includes(d) ? { background: theme.accent } : undefined}
-                  title={d}
+                  className={`habit-dot${on ? ' on' : ''}${d === today ? ' today' : ''}`}
+                  style={on ? { background: theme.accent } : undefined}
+                  title={d === today ? `${d}（今日）` : d}
                 />
-              ))}
-            </span>
-          )}
-        </span>
+              )
+            })}
+          </span>
+        )}
       </>
     )
   }
@@ -230,7 +241,7 @@ export default function SavingsPage({
 
     return (
       <li key={t.id}>
-        <div className={`row-card${done ? ' done' : ''}`}>
+        <div className={`row-card task-row${done ? ' done' : ''}`}>
           <button className="row-tap" onClick={() => openTask(t)}>{body}</button>
 
           {done ? (
@@ -260,7 +271,6 @@ export default function SavingsPage({
             />
           )}
         </div>
-        {done && daily && <div className="done-note">本日分達成済み</div>}
       </li>
     )
   }
@@ -449,15 +459,44 @@ export default function SavingsPage({
         ) : (
           <>
             <div className="hero-card">
-              <div className="hero-label">取っておいている額</div>
-              <div className="hero-number">¥{savingsKept.toLocaleString()}</div>
-            </div>
+              <div className="hero-top">
+                <span className="hero-label">現在のつもり貯金額</span>
+                <button className="hero-toggle" onClick={() => setBreakdown(o => !o)} aria-expanded={breakdown}>
+                  内訳 {breakdown ? '⌃' : '⌄'}
+                </button>
+              </div>
 
-            <div className="card">
-              <div className="calc-row"><span>貯めた額（累計）</span><span>¥{savingsEarned.toLocaleString()}</span></div>
-              <div className="calc-row"><span>切り崩した額</span><span>−¥{savingsWithdrawn.toLocaleString()}</span></div>
-              <hr className="divider" />
-              <div className="calc-row"><span>{monthLabel(thisMonth())}に貯めた額</span><span>¥{monthSavings.toLocaleString()}</span></div>
+              <div className="hero-number">¥{savingsKept.toLocaleString()}</div>
+
+              {breakdown && (
+                <div className="hero-breakdown">
+                  <div className="hero-calc"><span>貯めた額（累計）</span><span>¥{savingsEarned.toLocaleString()}</span></div>
+                  <div className="hero-calc"><span>− 切り崩した額</span><span>¥{savingsWithdrawn.toLocaleString()}</span></div>
+                  <div className="hero-rule" />
+                  <div className="hero-calc hero-calc-total">
+                    <span>= 現在のつもり貯金額</span>
+                    <span>¥{savingsKept.toLocaleString()}</span>
+                  </div>
+                  <div className="hero-rule" />
+                  <div className="hero-calc">
+                    <span>{monthLabel(thisMonth())}に貯めた額</span>
+                    <span>¥{monthSavings.toLocaleString()}</span>
+                  </div>
+                  <div className="hero-rule" />
+                  <div className="hero-calc"><span>所持金</span><span>¥{totalBalance.toLocaleString()}</span></div>
+                  <div className="hero-calc"><span>− 現在のつもり貯金額</span><span>¥{savingsKept.toLocaleString()}</span></div>
+                  <div className="hero-rule" />
+                  <div className={`hero-calc hero-calc-total${freeBalance < 0 ? ' hero-negative' : ''}`}>
+                    <span>= 貯金を除いた所持金</span>
+                    <span>¥{freeBalance.toLocaleString()}</span>
+                  </div>
+                  {freeBalance < 0 && (
+                    <p className="hero-note">
+                      ※ 所持金よりつもり貯金の方が多くなっています
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {inbox && inbox.kept > 0 && !goalSession.editing && (

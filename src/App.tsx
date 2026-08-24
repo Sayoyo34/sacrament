@@ -159,6 +159,22 @@ export default function App() {
     setPlanItems(prev => prev.map(p => p.walletId === id ? { ...p, walletId: '' } : p))
   }
 
+  /** 口座は配列の並びがそのまま表示順（ジャンル・タグと同じ扱い） */
+  function applyWalletEdit(orderedIds: string[], removedIds: string[]) {
+    setWallets(prev => {
+      const kept = prev.filter(w => !removedIds.includes(w.id))
+      const byId = new Map(kept.map(w => [w.id, w]))
+      const ordered = orderedIds.map(id => byId.get(id)).filter((w): w is Wallet => !!w)
+      // 並び順に載っていないものが万一あれば末尾に残す
+      const rest = kept.filter(w => !orderedIds.includes(w.id))
+      return [...ordered, ...rest]
+    })
+    if (removedIds.length) {
+      setEntries(prev => prev.filter(e => !removedIds.includes(e.walletId)))
+      setPlanItems(prev => prev.map(p => removedIds.includes(p.walletId) ? { ...p, walletId: '' } : p))
+    }
+  }
+
   // ── 予定 ───────────────────────────────
   function savePlan(d: PlanDraft) {
     if (d.id === null) {
@@ -485,6 +501,7 @@ export default function App() {
             onRemoveWallet={removeWallet}
             onSaveGenre={saveGenre}
             onSaveTag={saveTag}
+            onApplyWalletEdit={applyWalletEdit}
           />
         )}
         {page === 'savings' && (
@@ -495,6 +512,7 @@ export default function App() {
             goalRows={goalRows}
             savingsEarned={savingsEarned}
             savingsWithdrawn={savingsWithdrawn}
+            totalBalance={totalBalance}
             onSaveTask={saveTask}
             onRemoveTask={removeTask}
             onApplyTaskEdit={applyTaskEdit}

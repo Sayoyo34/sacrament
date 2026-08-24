@@ -4,6 +4,8 @@ import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/De
 import ConfirmModal from '../components/ConfirmModal'
 import { GenreDot, GenreSelect, TagFilter, TagList, TagPicker } from '../components/Pickers'
 import type { LabelDraft } from '../components/LabelListPage'
+import EditableList, { EditToolbar, ReorderButton } from '../components/EditableList'
+import { useEditSession } from '../useEditSession'
 import TopTabs from '../components/TopTabs'
 import { useSwipeTabs } from '../useSwipeNav'
 import { themeOf } from '../theme'
@@ -42,6 +44,7 @@ interface Props {
   onRemoveWallet: (id: string) => void
   onSaveGenre: (draft: LabelDraft) => string
   onSaveTag: (draft: LabelDraft) => string
+  onApplyWalletEdit: (orderedIds: string[], removedIds: string[]) => void
 }
 
 function shiftMonth(month: string, delta: number) {
@@ -53,10 +56,10 @@ function shiftMonth(month: string, delta: number) {
 export default function LedgerPage({
   wallets, entries, genres, tags, totalBalance,
   onSaveEntry, onRemoveEntry, onSaveWallet, onRemoveWallet, onSaveGenre, onSaveTag,
+  onApplyWalletEdit,
 }: Props) {
   const theme = themeOf('ledger')
   const [tab, setTab] = useState<Tab>('ledger')
-  const swipe = useSwipeTabs(['ledger', 'wallet'] as const, tab, setTab)
   const [month, setMonth] = useState(thisMonth())
   const [draft, setDraft] = useState<EntryDraft | null>(null)
   const [walletDraft, setWalletDraft] = useState<WalletDraft | null>(null)
@@ -64,6 +67,24 @@ export default function LedgerPage({
   const [filterTags, setFilterTags] = useState<string[]>([])
   const [entryError, setEntryError] = useState('')
   const [walletError, setWalletError] = useState('')
+
+  // 口座の並び替え（確定するまで下書きだけを書き換える）
+  const walletSession = useEditSession<Wallet>()
+  const [confirmWalletSave, setConfirmWalletSave] = useState(false)
+
+  function commitWalletEdit() {
+    onApplyWalletEdit(walletSession.draft.map(w => w.id), walletSession.removed)
+    walletSession.cancel()
+    setConfirmWalletSave(false)
+  }
+
+  /** タブを離れるときは、確定していない並び替えを畳んでおく（スワイプ移動も同じ） */
+  function changeTab(next: Tab) {
+    setTab(next)
+    walletSession.cancel()
+  }
+
+  const swipe = useSwipeTabs(['ledger', 'wallet'] as const, tab, changeTab)
 
   const monthEntries = entries
     .filter(e => monthOf(e.date) === month && matchesTags(e.tagIds, filterTags))
@@ -142,6 +163,21 @@ export default function LedgerPage({
     return true
   }
 
+  /** 口座1行の中身。並び替え中の行でもそのまま使う */
+  function walletBody(w: Wallet) {
+    return (
+      <>
+        <GenreDot genres={genres} genreId="" fallback="💳" />
+        <span className="row-main">
+          <span className="row-title">{w.name}</span>
+        </span>
+        <span className={`row-amount${w.balance < 0 ? ' remaining-negative' : ''}`}>
+          ¥{w.balance.toLocaleString()}
+        </span>
+      </>
+    )
+  }
+
   const draftGenre = genres.find(g => g.id === draft?.genreId)
 
   return (
@@ -149,7 +185,7 @@ export default function LedgerPage({
       <TopTabs
         tabs={[{ id: 'ledger' as Tab, label: '家計簿' }, { id: 'wallet' as Tab, label: '財布' }]}
         active={tab}
-        onChange={setTab}
+        onChange={changeTab}
         accent={theme.accent}
         soft={theme.soft}
       />
@@ -215,21 +251,40 @@ export default function LedgerPage({
               <div className="hero-number">¥{totalBalance.toLocaleString()}</div>
             </div>
 
-            <div className="section-header"><h3>口座別資産</h3></div>
-            {wallets.length === 0 ? (
+            <div className="section-header">
+              <h3>口座別資産 ({walletSession.editing ? walletSession.draft.length : wallets.length})</h3>
+              {wallets.length > 1 && !walletSession.editing && (
+                <ReorderButton onClick={() => walletSession.start(wallets)} />
+              )}
+            </div>
+
+            {walletSession.editing && (
+              <EditToolbar
+                selectedCount={walletSession.selected.size}
+                removedCount={walletSession.removed.length}
+                accent={theme.accent}
+                onCancel={walletSession.cancel}
+                onDelete={walletSession.removeSelected}
+                onDone={() => walletSession.removed.length > 0 ? setConfirmWalletSave(true) : commitWalletEdit()}
+              />
+            )}
+
+            {walletSession.editing ? (
+              <EditableList
+                rows={walletSession.draft.map(w => ({ id: w.id, content: walletBody(w) }))}
+                selected={walletSession.selected}
+                accent={theme.accent}
+                onToggle={walletSession.toggle}
+                onReorder={walletSession.reorder}
+              />
+            ) : wallets.length === 0 ? (
               <p className="empty-hint">口座がありません<br />+ボタンで追加できます</p>
             ) : (
               <ul className="item-list">
                 {wallets.map(w => (
                   <li key={w.id}>
                     <button className="row-card" onClick={() => setWalletDraft({ id: w.id, name: w.name, balance: w.balance })}>
-                      <GenreDot genres={genres} genreId="" fallback="💳" />
-                      <span className="row-main">
-                        <span className="row-title">{w.name}</span>
-                      </span>
-                      <span className={`row-amount${w.balance < 0 ? ' remaining-negative' : ''}`}>
-                        ¥{w.balance.toLocaleString()}
-                      </span>
+                      {walletBody(w)}
                     </button>
                   </li>
                 ))}
@@ -238,15 +293,17 @@ export default function LedgerPage({
           </>
         )}
 
-        <div className="fab-row">
-          <button
-            className="fab"
-            style={{ background: theme.accent, boxShadow: `0 4px 14px ${theme.accent}66` }}
-            onClick={tab === 'ledger' ? openNewEntry : openNewWallet}
-          >
-            +
-          </button>
-        </div>
+        {!walletSession.editing && (
+          <div className="fab-row">
+            <button
+              className="fab"
+              style={{ background: theme.accent, boxShadow: `0 4px 14px ${theme.accent}66` }}
+              onClick={tab === 'ledger' ? openNewEntry : openNewWallet}
+            >
+              +
+            </button>
+          </div>
+        )}
       </div>
 
       {draft && (
@@ -390,6 +447,15 @@ export default function LedgerPage({
             else { onRemoveEntry(deleteTarget.id); setDraft(null) }
             setDeleteTarget(null)
           }}
+        />
+      )}
+
+      {confirmWalletSave && (
+        <ConfirmModal
+          message={`${walletSession.removed.length}件の口座を削除して並び順を保存します。それぞれの取引記録も消え、取り消せません。よろしいですか？`}
+          confirmText="保存する"
+          onCancel={() => setConfirmWalletSave(false)}
+          onConfirm={commitWalletEdit}
         />
       )}
     </div>

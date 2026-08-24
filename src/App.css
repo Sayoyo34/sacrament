@@ -259,6 +259,11 @@
 
 .hero-breakdown .hero-note { opacity: 0.65; }
 
+.hero-calc-total.hero-negative { color: #b3261e; }
+
+/* バーを挟まず数字の直下に内訳を開く場合（貯金目標タブ）の間隔 */
+.hero-number + .hero-breakdown { margin-top: 0.75rem; }
+
 /* ── その場で開く引く／戻すパネル ───────── */
 .row-card.expanded {
   margin-bottom: 0;
@@ -608,7 +613,48 @@
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--accent);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
+
+/* 1行に収める行の中身。長い名前だけを詰めて、右側の要素は縮めない */
+.row-inline {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* 長い名前は隠さず2行まで折り返す。ほとんどの行は1行のまま */
+.row-inline .row-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.row-chip {
+  flex-shrink: 0;
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--code-bg);
+  border-radius: 999px;
+  padding: 0.1rem 0.4rem;
+  white-space: nowrap;
+}
+
+/* タスクは一度に見える件数がそのまま使い勝手なので、他の一覧より詰める */
+.row-card.task-row {
+  gap: 0.55rem;
+  padding: 0.45rem 0.7rem;
+  margin-bottom: 0.4rem;
+}
+
+.task-row .check-btn { width: 30px; height: 30px; }
 
 .genre-dot {
   display: inline-flex;
@@ -767,20 +813,26 @@
 
 .reorder-open:active { transform: none; }
 
-.habit-dots { display: flex; gap: 3px; margin-top: 4px; }
+/* 直近7日の達成ドット。行の右端、達成ボタンの手前に横並びで置く */
+.habit-dots {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  padding-right: 0.1rem;
+}
 
 .habit-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--border);
 }
 
-.done-note {
-  font-size: 0.7rem;
-  color: var(--text);
-  text-align: right;
-  margin: -0.25rem 0.6rem 0.5rem;
+/* 今日の分だけ大きくして、7つのどれが今日か一目で分かるようにする */
+.habit-dot.today {
+  width: 10px;
+  height: 10px;
 }
 
 /* ── Tags ─────────────────────────────── */
