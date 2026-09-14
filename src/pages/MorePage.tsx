@@ -23,12 +23,15 @@ interface Props {
   session: Session | null
   onSignIn: (email: string) => Promise<string | null>
   onSignOut: () => void
+  /** この端末とクラウドのどちらを残すか未選択で、同期を止めている */
+  syncPending: boolean
+  onOpenSyncConflict: () => void
 }
 
 export default function MorePage({
   genres, tags, onSaveGenre, onRemoveGenres, onApplyGenreEdit,
   onSaveTag, onRemoveTags, onApplyTagEdit, onReset,
-  hasSupabase, session, onSignIn, onSignOut,
+  hasSupabase, session, onSignIn, onSignOut, syncPending, onOpenSyncConflict,
 }: Props) {
   const theme = themeOf('more')
   const [view, setView] = useState<View>('menu')
@@ -85,6 +88,12 @@ export default function MorePage({
             {session ? (
               <div className="menu-account-body">
                 <p className="summary">{session.user.email} でログイン中</p>
+                {syncPending && (
+                  <>
+                    <p className="summary remaining-negative">この端末とクラウドの内容が違うため、同期を保留しています</p>
+                    <button className="btn-sub" onClick={onOpenSyncConflict}>どちらを残すか選ぶ</button>
+                  </>
+                )}
                 <button className="btn-sub" onClick={onSignOut}>ログアウト</button>
               </div>
             ) : (

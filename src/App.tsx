@@ -12,7 +12,11 @@ import { DEFAULT_GENRES, load, resetAll, save } from './storage'
 import type { Page } from './theme'
 import { generateId, todayStr } from './utils'
 import { hasSupabase, supabase } from './supabaseClient'
-import { pullCloudState, pushCloudState, subscribeCloudState, type AppData } from './cloudSync'
+import {
+  decideInitialSync, fingerprint, pullCloudState, pushCloudState, saveSyncBackup, saveSyncBase, subscribeCloudState,
+  type AppData,
+} from './cloudSync'
+import SyncConflictModal from './components/SyncConflictModal'
 import './App.css'
 
 export default function App() {
@@ -38,9 +42,26 @@ export default function App() {
 
   // ── クラウド同期（任意ログイン） ─────────
   const [session, setSession] = useState<Session | null>(null)
-  // 直近でクラウドと一致が取れているデータのJSON。pull/pushの度に更新し、
+  // トークン更新のたびに session オブジェクトは作り直されるので、同期の起点はユーザーIDにする
+  const userId = session?.user.id
+  // 直近でクラウドと一致が取れているデータの指紋。pull/push成功の度に更新し、
   // 変化していないのに書き戻す（＝他端末との無限ping-pong）のを防ぐ
   const lastSyncedRef = useRef<string>('')
+  // ログイン直後の突き合わせが済むまでは送受信しない（済む前に送るとクラウドを上書きしてしまう）
+  const [syncReady, setSyncReady] = useState(false)
+  const [conflict, setConflict] = useState<{ local: AppData; cloud: AppData } | null>(null)
+  const [conflictOpen, setConflictOpen] = useState(false)
+  // オフラインから復帰したら取り直し／送り直すためのきっかけ
+  const [retryTick, setRetryTick] = useState(0)
+
+  const appData: AppData = { wallets, entries, planItems, tasks, savingsEvents, goals, genres, tags }
+  const appDataRef = useRef(appData)
+  appDataRef.current = appData
+
+  function markSynced(uid: string, fp: string) {
+    lastSyncedRef.current = fp
+    saveSyncBase(uid, fp)
+  }
 
   function hydrateFromCloud(cloud: AppData) {
     setWallets(cloud.wallets)
@@ -60,47 +81,88 @@ export default function App() {
     return () => sub.subscription.unsubscribe()
   }, [])
 
-  // ログイン時: クラウドにデータがあれば取り込み、無ければ（初回ログイン）今のローカルデータを初期値として送る
+  // ログイン時: この端末とクラウドを突き合わせる。
+  // 以前は無条件にクラウドで上書きしていたため、同期できない間にこの端末で入れた分が消えていた
   useEffect(() => {
-    if (!hasSupabase || !session) return
+    setSyncReady(false)
+    lastSyncedRef.current = ''
+    if (!hasSupabase || !userId) {
+      setConflict(null)
+      setConflictOpen(false)
+      return
+    }
     let cancelled = false
     ;(async () => {
-      const cloud = await pullCloudState(session.user.id)
+      const cloud = await pullCloudState(userId)
       if (cancelled) return
-      if (cloud) {
-        lastSyncedRef.current = JSON.stringify(cloud)
-        hydrateFromCloud(cloud)
-      } else {
-        const local: AppData = { wallets, entries, planItems, tasks, savingsEvents, goals, genres, tags }
-        lastSyncedRef.current = JSON.stringify(local)
-        await pushCloudState(session.user.id, local)
+      const local = appDataRef.current
+      switch (decideInitialSync(userId, local, cloud)) {
+        case 'same':
+          markSynced(userId, fingerprint(local))
+          break
+        case 'pull':
+          markSynced(userId, fingerprint(cloud!))
+          hydrateFromCloud(cloud!)
+          break
+        case 'push':
+          // lastSyncedRef が空なので、下の送信処理がこの端末のデータを送る
+          break
+        case 'conflict':
+          setConflict({ local, cloud: cloud! })
+          setConflictOpen(true)
+          return
       }
-    })()
+      setSyncReady(true)
+    })().catch(() => { /* オフライン等。復帰時に retryTick で取り直す */ })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session])
+  }, [userId, retryTick])
+
+  // オフラインから戻ったら、突き合わせ前なら取り直し、済んでいれば未送信分を送り直す
+  useEffect(() => {
+    if (!hasSupabase || !userId) return
+    const onOnline = () => { if (!conflict) setRetryTick(t => t + 1) }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [userId, conflict])
+
+  function resolveConflict(keep: 'local' | 'cloud') {
+    if (!conflict || !userId) return
+    if (keep === 'cloud') {
+      saveSyncBackup('local', appDataRef.current)
+      markSynced(userId, fingerprint(conflict.cloud))
+      hydrateFromCloud(conflict.cloud)
+    } else {
+      saveSyncBackup('cloud', conflict.cloud)
+      // lastSyncedRef は空のままなので、下の送信処理がこの端末のデータを送る
+    }
+    setConflict(null)
+    setConflictOpen(false)
+    setSyncReady(true)
+  }
 
   // 他端末での変更をリアルタイムに反映
   useEffect(() => {
-    if (!hasSupabase || !session) return
-    return subscribeCloudState(session.user.id, cloud => {
-      lastSyncedRef.current = JSON.stringify(cloud)
+    if (!hasSupabase || !userId || !syncReady) return
+    return subscribeCloudState(userId, cloud => {
+      markSynced(userId, fingerprint(cloud))
       hydrateFromCloud(cloud)
     })
-  }, [session])
+  }, [userId, syncReady])
 
   // ローカルの変更をクラウドへ反映（デバウンス。前回同期分と同じなら送らない）
   useEffect(() => {
-    if (!hasSupabase || !session) return
-    const data: AppData = { wallets, entries, planItems, tasks, savingsEvents, goals, genres, tags }
-    const json = JSON.stringify(data)
-    if (json === lastSyncedRef.current) return
+    if (!hasSupabase || !userId || !syncReady) return
+    const data = appData
+    const fp = fingerprint(data)
+    if (fp === lastSyncedRef.current) return
     const timer = setTimeout(() => {
-      lastSyncedRef.current = json
-      pushCloudState(session.user.id, data).catch(() => {})
+      // 成功したときだけ同期済みにする。失敗分は次の変更・オンライン復帰・次回ログイン時に送り直す
+      pushCloudState(userId, data).then(() => markSynced(userId, fp)).catch(() => {})
     }, 800)
     return () => clearTimeout(timer)
-  }, [session, wallets, entries, planItems, tasks, savingsEvents, goals, genres, tags])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, syncReady, retryTick, wallets, entries, planItems, tasks, savingsEvents, goals, genres, tags])
 
   async function signInWithEmail(email: string): Promise<string | null> {
     const { error } = await supabase.auth.signInWithOtp({
@@ -570,10 +632,21 @@ export default function App() {
             session={session}
             onSignIn={signInWithEmail}
             onSignOut={signOut}
+            syncPending={!!conflict}
+            onOpenSyncConflict={() => setConflictOpen(true)}
           />
         )}
       </div>
       <BottomNav page={page} onChange={setPage} />
+      {conflict && conflictOpen && (
+        <SyncConflictModal
+          local={appData}
+          cloud={conflict.cloud}
+          onKeepLocal={() => resolveConflict('local')}
+          onKeepCloud={() => resolveConflict('cloud')}
+          onLater={() => setConflictOpen(false)}
+        />
+      )}
     </div>
   )
 }
