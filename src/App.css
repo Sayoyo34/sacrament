@@ -1217,6 +1217,19 @@ input, select, textarea {
   box-sizing: border-box;
 }
 
+/* iOS Safariの日付欄は中身の幅を最小幅として持ち、width:100% を無視して右にはみ出すことがある */
+input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  /* appearance:none にすると空欄のとき高さが潰れるので、他の入力欄と揃える */
+  min-height: 2.5rem;
+  text-align: left;
+}
+input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+
 textarea { resize: vertical; line-height: 1.5; }
 
 input:focus, select:focus, textarea:focus { border-color: var(--accent); }
