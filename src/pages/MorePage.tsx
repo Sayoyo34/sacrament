@@ -22,6 +22,7 @@ interface Props {
   hasSupabase: boolean
   session: Session | null
   onSignIn: (email: string) => Promise<string | null>
+  onVerifyCode: (email: string, code: string) => Promise<string | null>
   onSignOut: () => void
   /** この端末とクラウドのどちらを残すか未選択で、同期を止めている */
   syncPending: boolean
@@ -31,7 +32,7 @@ interface Props {
 export default function MorePage({
   genres, tags, onSaveGenre, onRemoveGenres, onApplyGenreEdit,
   onSaveTag, onRemoveTags, onApplyTagEdit, onReset,
-  hasSupabase, session, onSignIn, onSignOut, syncPending, onOpenSyncConflict,
+  hasSupabase, session, onSignIn, onVerifyCode, onSignOut, syncPending, onOpenSyncConflict,
 }: Props) {
   const theme = themeOf('more')
   const [view, setView] = useState<View>('menu')
@@ -40,6 +41,9 @@ export default function MorePage({
   const [email, setEmail] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
   const [authMsg, setAuthMsg] = useState('')
+  /** ログインメールを送った宛先。入っている間はコード入力欄を出す */
+  const [codeSentTo, setCodeSentTo] = useState('')
+  const [code, setCode] = useState('')
 
   async function handleSignIn() {
     const target = email.trim()
@@ -47,7 +51,22 @@ export default function MorePage({
     setAuthBusy(true)
     const error = await onSignIn(target)
     setAuthBusy(false)
-    setAuthMsg(error ? `送信に失敗しました（${error}）` : `${target} にログイン用のリンクを送りました。メールを確認してください。`)
+    if (error) {
+      setAuthMsg(`送信に失敗しました（${error}）`)
+      return
+    }
+    setCodeSentTo(target)
+    setCode('')
+    setAuthMsg(`${target} にログイン用のメールを送りました。メールに書かれたコードを入力するか、リンクを開いてください。`)
+  }
+
+  async function handleVerifyCode() {
+    const token = code.replace(/\D/g, '')
+    if (!codeSentTo || !token) return
+    setAuthBusy(true)
+    const error = await onVerifyCode(codeSentTo, token)
+    setAuthBusy(false)
+    if (error) setAuthMsg(`コードでログインできませんでした（${error}）`)
   }
 
   /** Googleフォームを別タブで開く。URL未設定のうちは案内だけ出す */
@@ -108,9 +127,26 @@ export default function MorePage({
                   />
                 </div>
                 <button className="btn-sub" onClick={handleSignIn} disabled={authBusy || !email.trim()}>
-                  ログインリンクを送る
+                  ログインメールを送る
                 </button>
                 {authMsg && <p className="summary">{authMsg}</p>}
+                {codeSentTo && (
+                  <>
+                    <div className="form-row">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        placeholder="メールに書かれたコード"
+                        value={code}
+                        onChange={e => setCode(e.target.value)}
+                      />
+                    </div>
+                    <button className="btn-sub" onClick={handleVerifyCode} disabled={authBusy || !code.trim()}>
+                      コードでログイン
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>

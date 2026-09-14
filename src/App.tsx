@@ -172,6 +172,13 @@ export default function App() {
     return error ? error.message : null
   }
 
+  // iPhoneのホーム画面アプリはSafariと保存領域が別なので、メールのリンクを開くとSafari側がログインしてしまう。
+  // アプリ内でログインできるよう、メールに載っているコードの入力でも受け付ける
+  async function verifyEmailCode(email: string, token: string): Promise<string | null> {
+    const { error } = await supabase.auth.verifyOtp({ email, token, type: 'email' })
+    return error ? error.message : null
+  }
+
   function signOut() {
     supabase.auth.signOut()
   }
@@ -631,6 +638,7 @@ export default function App() {
             hasSupabase={hasSupabase}
             session={session}
             onSignIn={signInWithEmail}
+            onVerifyCode={verifyEmailCode}
             onSignOut={signOut}
             syncPending={!!conflict}
             onOpenSyncConflict={() => setConflictOpen(true)}
