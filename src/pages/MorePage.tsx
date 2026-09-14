@@ -22,7 +22,8 @@ interface Props {
   hasSupabase: boolean
   session: Session | null
   onSignIn: (email: string) => Promise<string | null>
-  onVerifyCode: (email: string, code: string) => Promise<string | null>
+  onPasswordSignIn: (email: string, password: string) => Promise<string | null>
+  onSetPassword: (password: string) => Promise<string | null>
   onSignOut: () => void
   /** この端末とクラウドのどちらを残すか未選択で、同期を止めている */
   syncPending: boolean
@@ -32,7 +33,7 @@ interface Props {
 export default function MorePage({
   genres, tags, onSaveGenre, onRemoveGenres, onApplyGenreEdit,
   onSaveTag, onRemoveTags, onApplyTagEdit, onReset,
-  hasSupabase, session, onSignIn, onVerifyCode, onSignOut, syncPending, onOpenSyncConflict,
+  hasSupabase, session, onSignIn, onPasswordSignIn, onSetPassword, onSignOut, syncPending, onOpenSyncConflict,
 }: Props) {
   const theme = themeOf('more')
   const [view, setView] = useState<View>('menu')
@@ -41,9 +42,9 @@ export default function MorePage({
   const [email, setEmail] = useState('')
   const [authBusy, setAuthBusy] = useState(false)
   const [authMsg, setAuthMsg] = useState('')
-  /** ログインメールを送った宛先。入っている間はコード入力欄を出す */
-  const [codeSentTo, setCodeSentTo] = useState('')
-  const [code, setCode] = useState('')
+  const [password, setPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [passwordMsg, setPasswordMsg] = useState('')
 
   async function handleSignIn() {
     const target = email.trim()
@@ -51,22 +52,30 @@ export default function MorePage({
     setAuthBusy(true)
     const error = await onSignIn(target)
     setAuthBusy(false)
-    if (error) {
-      setAuthMsg(`送信に失敗しました（${error}）`)
-      return
-    }
-    setCodeSentTo(target)
-    setCode('')
-    setAuthMsg(`${target} にログイン用のメールを送りました。メールに書かれたコードを入力するか、リンクを開いてください。`)
+    setAuthMsg(error ? `送信に失敗しました（${error}）` : `${target} にログイン用のリンクを送りました。メールを確認してください。`)
   }
 
-  async function handleVerifyCode() {
-    const token = code.replace(/\D/g, '')
-    if (!codeSentTo || !token) return
+  async function handlePasswordSignIn() {
+    const target = email.trim()
+    if (!target || !password) return
     setAuthBusy(true)
-    const error = await onVerifyCode(codeSentTo, token)
+    const error = await onPasswordSignIn(target, password)
     setAuthBusy(false)
-    if (error) setAuthMsg(`コードでログインできませんでした（${error}）`)
+    if (error) setAuthMsg(`ログインできませんでした（${error}）`)
+    else setPassword('')
+  }
+
+  async function handleSetPassword() {
+    if (newPassword.length < 6) return
+    setAuthBusy(true)
+    const error = await onSetPassword(newPassword)
+    setAuthBusy(false)
+    if (error) {
+      setPasswordMsg(`設定できませんでした（${error}）`)
+      return
+    }
+    setNewPassword('')
+    setPasswordMsg('パスワードを設定しました。ホーム画面のアプリでは、このパスワードでログインできます。')
   }
 
   /** Googleフォームを別タブで開く。URL未設定のうちは案内だけ出す */
@@ -113,7 +122,24 @@ export default function MorePage({
                     <button className="btn-sub" onClick={onOpenSyncConflict}>どちらを残すか選ぶ</button>
                   </>
                 )}
-                <button className="btn-sub" onClick={onSignOut}>ログアウト</button>
+                <div className="form-row">
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="パスワード（6文字以上）"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                  />
+                </div>
+                <div style={{ marginBottom: '0.6rem' }}>
+                  <button className="btn-sub" onClick={handleSetPassword} disabled={authBusy || newPassword.length < 6}>
+                    パスワードを設定
+                  </button>
+                </div>
+                {passwordMsg && <p className="summary">{passwordMsg}</p>}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
+                  <button className="btn-sub" onClick={onSignOut}>ログアウト</button>
+                </div>
               </div>
             ) : (
               <div className="menu-account-body">
@@ -126,27 +152,25 @@ export default function MorePage({
                     onChange={e => setEmail(e.target.value)}
                   />
                 </div>
-                <button className="btn-sub" onClick={handleSignIn} disabled={authBusy || !email.trim()}>
-                  ログインメールを送る
-                </button>
+                <div className="form-row">
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    placeholder="パスワード"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                  <button className="btn-sub" onClick={handlePasswordSignIn} disabled={authBusy || !email.trim() || !password}>
+                    パスワードでログイン
+                  </button>
+                  <button className="btn-sub" onClick={handleSignIn} disabled={authBusy || !email.trim()}>
+                    ログインリンクを送る
+                  </button>
+                </div>
+                <p className="summary">パスワードが未設定なら、リンクでログインしてからここで設定できます</p>
                 {authMsg && <p className="summary">{authMsg}</p>}
-                {codeSentTo && (
-                  <>
-                    <div className="form-row">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        placeholder="メールに書かれたコード"
-                        value={code}
-                        onChange={e => setCode(e.target.value)}
-                      />
-                    </div>
-                    <button className="btn-sub" onClick={handleVerifyCode} disabled={authBusy || !code.trim()}>
-                      コードでログイン
-                    </button>
-                  </>
-                )}
               </div>
             )}
           </div>

@@ -173,10 +173,23 @@ export default function App() {
   }
 
   // iPhoneのホーム画面アプリはSafariと保存領域が別なので、メールのリンクを開くとSafari側がログインしてしまう。
-  // アプリ内でログインできるよう、メールに載っているコードの入力でも受け付ける
-  async function verifyEmailCode(email: string, token: string): Promise<string | null> {
-    const { error } = await supabase.auth.verifyOtp({ email, token, type: 'email' })
-    return error ? error.message : null
+  // アプリ内でログインできるよう、リンクでログインした端末で設定したパスワードでも受け付ける
+  // （無料プランの標準メールではテンプレートを編集できず、コードをメールに載せられないため）
+  async function signInWithPassword(email: string, password: string): Promise<string | null> {
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    return error ? authErrorText(error.message) : null
+  }
+
+  async function updatePassword(password: string): Promise<string | null> {
+    const { error } = await supabase.auth.updateUser({ password })
+    return error ? authErrorText(error.message) : null
+  }
+
+  function authErrorText(message: string): string {
+    if (message === 'Invalid login credentials') return 'メールアドレスかパスワードが違います'
+    if (/should be at least/i.test(message)) return 'パスワードが短すぎます'
+    if (/should be different/i.test(message)) return '今と同じパスワードです'
+    return message
   }
 
   function signOut() {
@@ -638,7 +651,8 @@ export default function App() {
             hasSupabase={hasSupabase}
             session={session}
             onSignIn={signInWithEmail}
-            onVerifyCode={verifyEmailCode}
+            onPasswordSignIn={signInWithPassword}
+            onSetPassword={updatePassword}
             onSignOut={signOut}
             syncPending={!!conflict}
             onOpenSyncConflict={() => setConflictOpen(true)}
