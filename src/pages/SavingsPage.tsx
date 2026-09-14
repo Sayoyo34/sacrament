@@ -13,7 +13,7 @@ import { readableColor } from '../palette'
 import TopTabs from '../components/TopTabs'
 import { useSwipeTabs } from '../useSwipeNav'
 import { themeOf } from '../theme'
-import { monthLabel, monthOf, recentDays, thisMonth, todayStr, yen } from '../utils'
+import { recentDays, todayStr, yen } from '../utils'
 import { firstError, notNegative, positive, required } from '../validation'
 
 type Tab = 'tasks' | 'goals'
@@ -81,6 +81,7 @@ export default function SavingsPage({
   const [taskError, setTaskError] = useState('')
   const [goalError, setGoalError] = useState('')
   const [reordering, setReordering] = useState<TaskRepeat | null>(null)
+  const [showArchived, setShowArchived] = useState(false)             // 達成済みタスク欄
   const [confirmSave, setConfirmSave] = useState(false)
   const session = useEditSession<Task>()
 
@@ -152,17 +153,27 @@ export default function SavingsPage({
   const week = recentDays(7)
   const sorted = tasks.slice().sort((a, b) => a.order - b.order)
   const dailies = sorted.filter(t => t.repeat === 'daily')
-  const onces = sorted.filter(t => t.repeat === 'once')
-
-  const monthSavings = savingsEvents
-    .filter(e => monthOf(e.date) === thisMonth() && e.amount > 0)
-    .reduce((s, e) => s + e.amount, 0)
+  // 一度きりのタスクは、達成した日のうちは一覧に残して間違いを取り消しやすくし、日付が変わったら「達成済み」にしまう
+  const onces = sorted.filter(t => t.repeat === 'once' && !isArchived(t))
+  const archived = sorted
+    .filter(isArchived)
+    .sort((a, b) => doneDate(b).localeCompare(doneDate(a)))
 
   // 実際の所持金のうち、つもり貯金として取り置いていない分
   const freeBalance = totalBalance - savingsKept
 
   function isDone(t: Task) {
     return t.repeat === 'daily' ? t.completedDates.includes(today) : t.completedDates.length > 0
+  }
+
+  /** 一度きりのタスクを達成した日（YYYY-MM-DD）。未達成・デイリーは '' */
+  function doneDate(t: Task) {
+    return t.repeat === 'once' ? (t.completedDates.slice().sort().pop() ?? '') : ''
+  }
+
+  /** 日付が変わって「達成済み」にしまった一度きりのタスクか */
+  function isArchived(t: Task) {
+    return t.repeat === 'once' && isDone(t) && doneDate(t) < today
   }
 
   function openNew() {
@@ -214,6 +225,9 @@ export default function SavingsPage({
           <span className={`row-title${done && !daily ? ' struck' : ''}`}>{t.name}</span>
           {t.timerMinutes > 0 && <span className="row-chip">⏱{t.timerMinutes}分</span>}
           {t.bonusAmount > 0 && <span className="row-bonus">+¥{t.bonusAmount.toLocaleString()}</span>}
+          {isArchived(t) && (
+            <span className="row-chip">{Number(doneDate(t).slice(5, 7))}/{Number(doneDate(t).slice(8, 10))} 達成</span>
+          )}
         </span>
         {daily && !compact && (
           <span className="habit-dots">
@@ -416,6 +430,9 @@ export default function SavingsPage({
   const timerTask = tasks.find(t => t.id === timer?.taskId)
   const timerGenre = genres.find(g => g.id === timerTask?.genreId)
   const draftGenre = genres.find(g => g.id === draft?.genreId)
+  // 達成済みの一度きりタスクは見るだけ。貯めた記録と食い違わないよう、直すなら達成を取り消してから
+  const draftTask = draft?.id ? tasks.find(t => t.id === draft.id) : undefined
+  const draftLocked = !!draftTask && draftTask.repeat === 'once' && isDone(draftTask)
 
   return (
     <div className="page">
@@ -444,7 +461,24 @@ export default function SavingsPage({
         {tab === 'tasks' ? (
           <>
             {renderSection('daily', dailies, 'デイリーミッション', '毎日続けたいことを登録できます')}
-            {renderSection('once', onces, 'タスク', '一度きりのタスクがありません')}
+            {renderSection('once', onces, 'タスク', archived.length > 0 ? 'タスクはすべて達成済みです' : '一度きりのタスクがありません')}
+
+            {archived.length > 0 && reordering === null && (
+              <>
+                <div className="section-header">
+                  <h3>達成済み ({archived.length})</h3>
+                  <button
+                    className="reorder-open"
+                    style={{ width: 'auto', padding: '0 0.7rem', fontSize: '0.75rem' }}
+                    onClick={() => setShowArchived(o => !o)}
+                    aria-expanded={showArchived}
+                  >
+                    {showArchived ? 'たたむ ⌃' : 'ひらく ⌄'}
+                  </button>
+                </div>
+                {showArchived && <ul className="item-list">{archived.map(renderTask)}</ul>}
+              </>
+            )}
 
             <div className="fab-row">
               <button
@@ -476,11 +510,6 @@ export default function SavingsPage({
                   <div className="hero-calc hero-calc-total">
                     <span>= 現在のつもり貯金額</span>
                     <span>¥{savingsKept.toLocaleString()}</span>
-                  </div>
-                  <div className="hero-rule" />
-                  <div className="hero-calc">
-                    <span>{monthLabel(thisMonth())}に貯めた額</span>
-                    <span>¥{monthSavings.toLocaleString()}</span>
                   </div>
                   <div className="hero-rule" />
                   <div className="hero-calc"><span>所持金</span><span>¥{totalBalance.toLocaleString()}</span></div>
@@ -604,11 +633,17 @@ export default function SavingsPage({
           onNameChange={v => setDraft({ ...draft, name: v })}
           namePlaceholder="例: 部屋の掃除"
           onClose={() => { setDraft(null); setTaskError('') }}
-          onSave={saveTask}
+          onSave={draftLocked ? undefined : saveTask}
           startInEdit={draft.id === null}
           error={taskError}
           onDelete={draft.id ? () => setDeleteTarget({ id: draft.id!, name: draft.name }) : undefined}
         >
+          {draftLocked && draftTask && (
+            <p className="summary" style={{ margin: '0 0.25rem 0.75rem', lineHeight: 1.7 }}>
+              {Number(doneDate(draftTask).slice(5, 7))}/{Number(doneDate(draftTask).slice(8, 10))} に達成済みのため編集できません。
+              直すときは、一覧のチェックを押して達成を取り消してください
+            </p>
+          )}
           <DetailRow
             icon="🔁"
             label="繰り返し"
@@ -833,7 +868,6 @@ export default function SavingsPage({
                   onChange={e => setSavingsDraft({ ...savingsDraft, amount: Number(e.target.value) })}
                   placeholder="0"
                   min={0}
-                  autoFocus
                 />
               </div>
 
