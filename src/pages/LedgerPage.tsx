@@ -9,7 +9,7 @@ import { useEditSession } from '../useEditSession'
 import TopTabs from '../components/TopTabs'
 import { useSwipeTabs } from '../useSwipeNav'
 import { themeOf } from '../theme'
-import { matchesTags, monthLabel, monthOf, thisMonth, todayStr, yen } from '../utils'
+import { byNewest, matchesTags, monthLabel, monthOf, thisMonth, todayStr, yen } from '../utils'
 import { firstError, positive, required, selected } from '../validation'
 
 type Tab = 'ledger' | 'wallet'
@@ -86,10 +86,10 @@ export default function LedgerPage({
 
   const swipe = useSwipeTabs(['ledger', 'wallet'] as const, tab, changeTab)
 
-  const monthEntries = entries
-    .filter(e => monthOf(e.date) === month && matchesTags(e.tagIds, filterTags))
-    .slice()
-    .sort((a, b) => b.date.localeCompare(a.date))
+  const monthEntries = byNewest(
+    entries.filter(e => monthOf(e.date) === month && matchesTags(e.tagIds, filterTags)),
+    e => e.date,
+  )
 
   const monthExpense = monthEntries
     .filter(e => e.amount < 0)

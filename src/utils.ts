@@ -106,3 +106,14 @@ export function reorderWithinGroup<T extends { id: string; order: number }>(
 export function matchesTags(itemTagIds: string[], selected: string[]) {
   return selected.every(id => itemTagIds.includes(id))
 }
+
+/**
+ * 日付の新しい順に並べる。同じ日付のものは、あとから登録したぶんが上に来る
+ * （配列の後ろにあるものほど新しいので、位置の降順を第2の並び順に使う）。
+ */
+export function byNewest<T>(items: T[], dateOf: (item: T) => string): T[] {
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => dateOf(b.item).localeCompare(dateOf(a.item)) || b.index - a.index)
+    .map(x => x.item)
+}

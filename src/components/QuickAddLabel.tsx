@@ -53,7 +53,6 @@ export default function QuickAddLabel({ kind, withIcon, nameMax, existingNames, 
               onChange={e => { setName(e.target.value); setError('') }}
               placeholder={withIcon ? '例: 遠征費' : '例: 推しの名前'}
               maxLength={nameMax}
-              autoFocus
             />
           </div>
 

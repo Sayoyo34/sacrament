@@ -13,7 +13,7 @@ import { readableColor } from '../palette'
 import TopTabs from '../components/TopTabs'
 import { useSwipeTabs } from '../useSwipeNav'
 import { themeOf } from '../theme'
-import { recentDays, todayStr, yen } from '../utils'
+import { byNewest, recentDays, todayStr, yen } from '../utils'
 import { firstError, notNegative, positive, required } from '../validation'
 
 type Tab = 'tasks' | 'goals'
@@ -155,9 +155,8 @@ export default function SavingsPage({
   const dailies = sorted.filter(t => t.repeat === 'daily')
   // 一度きりのタスクは、達成した日のうちは一覧に残して間違いを取り消しやすくし、日付が変わったら「達成済み」にしまう
   const onces = sorted.filter(t => t.repeat === 'once' && !isArchived(t))
-  const archived = sorted
-    .filter(isArchived)
-    .sort((a, b) => doneDate(b).localeCompare(doneDate(a)))
+  // 達成が新しい順。同じ日に達成したものは、あとから作ったタスクを上にする
+  const archived = byNewest(tasks.filter(isArchived), doneDate)
 
   // 実際の所持金のうち、つもり貯金として取り置いていない分
   const freeBalance = totalBalance - savingsKept
@@ -295,17 +294,17 @@ export default function SavingsPage({
   // ── 貯める・記録の後始末 ────────────────
   /** 行き先を決めずに貯めた分。目標ではなく「仕分け待ち」として扱う */
   const inbox = goalRows.find(g => g.id === '') ?? null
-  const inboxEvents = savingsEvents
-    .filter(e => e.goalId === '' && e.amount > 0)
-    .slice()
-    .sort((a, b) => b.date.localeCompare(a.date))
+  const inboxEvents = byNewest(
+    savingsEvents.filter(e => e.goalId === '' && e.amount > 0),
+    e => e.date,
+  )
 
   /** 目標ごとの直近の記録。パネルの中に出して、その場で取り消せるようにする */
   function recentOf(goalId: string) {
-    return savingsEvents
-      .filter(e => e.goalId === goalId && e.amount > 0)
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 3)
+    return byNewest(
+      savingsEvents.filter(e => e.goalId === goalId && e.amount > 0),
+      e => e.date,
+    ).slice(0, 3)
   }
 
   function openAddSavings() {

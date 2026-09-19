@@ -123,7 +123,6 @@ export default function InlineDeduct({
             onChange={e => changeAmount(Number(e.target.value))}
             placeholder="0"
             min={0}
-            autoFocus
           />
           <span className="inline-unit">円</span>
         </div>
