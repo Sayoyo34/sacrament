@@ -12,8 +12,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['pwa-icon.svg', 'favicon.ico', 'apple-touch-icon-180x180.png'],
       manifest: {
-        name: 'sacrament',
-        short_name: 'sacrament',
+        name: 'おふせ手帖',
+        short_name: 'おふせ手帖',
         description: '推し活費用管理',
         lang: 'ja',
         start_url: '/',
