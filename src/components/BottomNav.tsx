@@ -20,7 +20,7 @@ export default function BottomNav({ page, onChange }: Props) {
               className="nav-icon"
               style={active ? { background: theme.soft } : undefined}
             >
-              {theme.icon}
+              <theme.icon />
             </span>
             <span style={active ? { color: theme.accent } : undefined}>{theme.label}</span>
           </button>

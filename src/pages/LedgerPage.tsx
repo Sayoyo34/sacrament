@@ -1,4 +1,8 @@
 import { useState } from 'react'
+import {
+  PiArrowsClockwise, PiCalendarBlank, PiCoins, PiCreditCard,
+  PiLightbulb, PiNotePencil, PiReceipt, PiSquaresFour, PiTag,
+} from 'react-icons/pi'
 import type { Genre, LedgerEntry, Tag, Wallet } from '../types'
 import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
@@ -167,7 +171,7 @@ export default function LedgerPage({
   function walletBody(w: Wallet) {
     return (
       <>
-        <GenreDot genres={genres} genreId="" fallback="💳" />
+        <GenreDot genres={genres} genreId="" fallback={<PiCreditCard />} />
         <span className="row-main">
           <span className="row-title">{w.name}</span>
         </span>
@@ -223,7 +227,7 @@ export default function LedgerPage({
                   return (
                     <li key={e.id}>
                       <button className="row-card" onClick={() => openEntry(e)}>
-                        <GenreDot genres={genres} genreId={e.genreId} fallback="📝" />
+                        <GenreDot genres={genres} genreId={e.genreId} fallback={<PiReceipt />} />
                         <span className="row-main">
                           <span className="row-title">{e.label}</span>
                           <span className="row-sub">
@@ -308,7 +312,7 @@ export default function LedgerPage({
 
       {draft && (
         <DetailModal
-          icon={draftGenre?.icon ?? '📝'}
+          icon={draftGenre?.icon ?? <PiReceipt />}
           color={draftGenre ? `${draftGenre.color}55` : theme.soft}
           name={draft.label}
           onNameChange={v => setDraft({ ...draft, label: v })}
@@ -319,7 +323,7 @@ export default function LedgerPage({
           error={entryError}
           onDelete={draft.id ? () => setDeleteTarget({ kind: 'entry', id: draft.id!, name: draft.label }) : undefined}
         >
-          <DetailRow icon="🔁" label="種別" value={<ReadValue>{draft.type === 'expense' ? '支出' : '収入'}</ReadValue>}>
+          <DetailRow icon={<PiArrowsClockwise />} label="種別" value={<ReadValue>{draft.type === 'expense' ? '支出' : '収入'}</ReadValue>}>
             <div className="type-toggle">
               <button
                 className={draft.type !== 'expense' ? 'btn-sub' : ''}
@@ -333,7 +337,7 @@ export default function LedgerPage({
           </DetailRow>
 
           <DetailRow
-            icon="💰"
+            icon={<PiCoins />}
             label="金額"
             value={
               <ReadValue>
@@ -350,12 +354,12 @@ export default function LedgerPage({
             />
           </DetailRow>
 
-          <DetailRow icon="📅" label="日付" value={<ReadValue>{draft.date}</ReadValue>}>
+          <DetailRow icon={<PiCalendarBlank />} label="日付" value={<ReadValue>{draft.date}</ReadValue>}>
             <input type="date" value={draft.date} onChange={e => setDraft({ ...draft, date: e.target.value })} />
           </DetailRow>
 
           <DetailRow
-            icon="💳"
+            icon={<PiCreditCard />}
             label="口座"
             value={<ReadValue>{wallets.find(w => w.id === draft.walletId)?.name ?? '未設定'}</ReadValue>}
           >
@@ -365,7 +369,7 @@ export default function LedgerPage({
           </DetailRow>
 
           <DetailRow
-            icon="💙"
+            icon={<PiSquaresFour />}
             label="ジャンル"
             value={
               <ReadValue muted={!draftGenre}>
@@ -380,7 +384,7 @@ export default function LedgerPage({
           </DetailRow>
 
           <DetailBlock
-            icon="🏷"
+            icon={<PiTag />}
             label="タグ"
             value={draft.tagIds.length > 0
               ? <TagList tags={tags} ids={draft.tagIds} />
@@ -393,7 +397,7 @@ export default function LedgerPage({
           </DetailBlock>
 
           <DetailBlock
-            icon="📝"
+            icon={<PiNotePencil />}
             label="メモ"
             value={<p className={draft.memo ? 'detail-memo' : 'summary'}>{draft.memo || 'なし'}</p>}
           >
@@ -409,7 +413,7 @@ export default function LedgerPage({
 
       {walletDraft && (
         <DetailModal
-          icon="💳"
+          icon={<PiCreditCard />}
           color={theme.soft}
           name={walletDraft.name}
           onNameChange={v => setWalletDraft({ ...walletDraft, name: v })}
@@ -420,7 +424,7 @@ export default function LedgerPage({
           error={walletError}
           onDelete={walletDraft.id ? () => setDeleteTarget({ kind: 'wallet', id: walletDraft.id!, name: walletDraft.name }) : undefined}
         >
-          <DetailRow icon="💰" label="残高" value={<ReadValue>{yen(walletDraft.balance)}</ReadValue>}>
+          <DetailRow icon={<PiCoins />} label="残高" value={<ReadValue>{yen(walletDraft.balance)}</ReadValue>}>
             <input
               type="number"
               value={walletDraft.balance || ''}
@@ -428,7 +432,7 @@ export default function LedgerPage({
               placeholder="0"
             />
           </DetailRow>
-          <DetailRow icon="💡" label="" value={null}>
+          <DetailRow icon={<PiLightbulb />} label="" value={null}>
             <span className="summary">取引を記録すると自動で増減します</span>
           </DetailRow>
         </DetailModal>

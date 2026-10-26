@@ -1,7 +1,9 @@
+import type { ReactNode } from 'react'
+
 export interface Slice {
   id: string
   name: string
-  icon: string
+  icon: ReactNode
   value: number
   color: string
 }

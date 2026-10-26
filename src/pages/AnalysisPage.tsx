@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PiClipboardText, PiPiggyBank, PiQuestion, PiScissors } from 'react-icons/pi'
 import type { Genre, LedgerEntry, SavingsEvent, Tag, Task } from '../types'
 import TopTabs from '../components/TopTabs'
 import { useSwipeTabs } from '../useSwipeNav'
@@ -79,7 +80,7 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
       return {
         id: genreId || 'unset',
         name: g?.name ?? '未分類',
-        icon: g?.icon ?? '❔',
+        icon: g?.icon ?? <PiQuestion />,
         value,
         color: g?.color ?? UNSET_COLOR,
       }
@@ -270,7 +271,7 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
                 {taskRanking.map(([label, value]) => (
                   <li key={label}>
                     <div className="row-card" style={{ cursor: 'default' }}>
-                      <span className="genre-dot" style={{ background: `${theme.accent}33`, width: 34, height: 34, fontSize: 17 }}>🐷</span>
+                      <span className="genre-dot" style={{ background: `${theme.accent}33`, width: 34, height: 34, fontSize: 17 }}><PiPiggyBank /></span>
                       <span className="row-main">
                         <span className="row-title">{label}</span>
                         <span className="bar">
@@ -293,7 +294,7 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
                   <li key={task.id}>
                     <div className="row-card" style={{ cursor: 'default' }}>
                       <span className="genre-dot" style={{ background: `${color}33`, width: 34, height: 34, fontSize: 17 }}>
-                        {genres.find(g => g.id === task.genreId)?.icon ?? '📋'}
+                        {genres.find(g => g.id === task.genreId)?.icon ?? <PiClipboardText />}
                       </span>
                       <span className="row-main">
                         <span className="row-title">{task.name}</span>
@@ -329,7 +330,7 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
                         className="genre-dot"
                         style={{ background: `${ev.amount < 0 ? '#e53e3e' : theme.accent}33`, width: 34, height: 34, fontSize: 17 }}
                       >
-                        {ev.amount < 0 ? '✂️' : '🐷'}
+                        {ev.amount < 0 ? <PiScissors /> : <PiPiggyBank />}
                       </span>
                       <span className="row-main">
                         <span className="row-title">{ev.label}</span>

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
+import { PiTrash, PiX } from 'react-icons/pi'
 import Sheet from './Sheet'
 
 type Mode = 'view' | 'edit'
@@ -6,7 +7,7 @@ type Mode = 'view' | 'edit'
 const DetailMode = createContext<Mode>('edit')
 
 interface Props {
-  icon: string
+  icon: ReactNode
   color: string       // ヘッダー背景（ジャンル色）
   name: string
   /** 新規作成など、最初から編集状態で開きたい場合 */
@@ -52,10 +53,10 @@ export default function DetailModal({
         <>
           <div className="detail-head" style={{ background: color }}>
             <div className="detail-head-bar">
-              <button className="icon-btn" onClick={requestClose} aria-label="閉じる">✕</button>
+              <button className="icon-btn" onClick={requestClose} aria-label="閉じる"><PiX /></button>
               <div className="detail-head-actions">
                 {onDelete && (
-                  <button className="icon-btn" onClick={onDelete} aria-label="削除">🗑</button>
+                  <button className="icon-btn" onClick={onDelete} aria-label="削除"><PiTrash /></button>
                 )}
                 {onSave && (
                   editing
@@ -103,7 +104,7 @@ export default function DetailModal({
  * value={null} なら閲覧モードでは行ごと出さない（編集専用の行）。
  */
 export function DetailRow({ icon, label, value, children }: {
-  icon: string
+  icon: ReactNode
   label: string
   value?: ReactNode
   children?: ReactNode
@@ -122,7 +123,7 @@ export function DetailRow({ icon, label, value, children }: {
 
 /** ラベルを上に置き、下に自由な高さの中身を敷く行（メモ・タグなど） */
 export function DetailBlock({ icon, label, value, children }: {
-  icon: string
+  icon: ReactNode
   label: string
   value?: ReactNode
   children?: ReactNode

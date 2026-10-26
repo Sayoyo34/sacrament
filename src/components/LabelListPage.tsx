@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PiEye, PiPalette, PiTag } from 'react-icons/pi'
 import ConfirmModal from './ConfirmModal'
 import DetailModal, { DetailBlock, DetailRow } from './DetailModal'
 import EditableList, { EditToolbar, ReorderButton, type EditRow } from './EditableList'
@@ -147,7 +148,7 @@ export default function LabelListPage({
 
       {draft && (
         <DetailModal
-          icon={withIcon ? (draft.icon || '📦') : '🏷'}
+          icon={withIcon ? (draft.icon || '📦') : <PiTag />}
           color={`${draft.color}55`}
           name={draft.name}
           onNameChange={v => setDraft({ ...draft, name: v })}
@@ -160,7 +161,7 @@ export default function LabelListPage({
           onDelete={draft.id ? () => setDeleteTarget(draft.id) : undefined}
         >
           <DetailBlock
-            icon="😊"
+            icon={<PiPalette />}
             label="見た目"
             value={
               <span className="genre-dot" style={{ background: `${draft.color}33`, width: 40, height: 40, fontSize: 20 }}>
@@ -180,7 +181,7 @@ export default function LabelListPage({
             </div>
           </DetailBlock>
 
-          <DetailRow icon="👀" label="表示例" value={null}>
+          <DetailRow icon={<PiEye />} label="表示例" value={null}>
             <span className="detail-value" style={{ color: readableColor(draft.color), fontFamily: 'inherit' }}>
               {prefix}{draft.name || '（名前未入力）'}
             </span>

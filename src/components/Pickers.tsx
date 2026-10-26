@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+import { PiQuestion } from 'react-icons/pi'
 import type { Genre, Tag } from '../types'
 import QuickAddLabel from './QuickAddLabel'
 import { GENRE_NAME_MAX, readableColor, TAG_NAME_MAX } from '../palette'
@@ -183,10 +184,10 @@ export function TagList({ tags, ids }: { tags: Tag[]; ids: string[] }) {
  * ジャンル色を色として使うのは、それが凡例＝データになる分析画面だけ。
  * 一覧で色を持つのはタグ（推しカラー）だけ、という住み分け。
  */
-export function GenreDot({ genres, genreId, fallback = '📦', size = 34 }: {
+export function GenreDot({ genres, genreId, fallback = <PiQuestion />, size = 34 }: {
   genres: Genre[]
   genreId: string
-  fallback?: string
+  fallback?: ReactNode
   size?: number
 }) {
   const g = genres.find(x => x.id === genreId)

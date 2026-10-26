@@ -1,4 +1,5 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { PiCheck, PiTrash, PiX } from 'react-icons/pi'
 
 export interface EditRow {
   id: string
@@ -118,7 +119,7 @@ export default function EditableList({ rows, selected, accent, onToggle, onReord
                 onClick={() => onToggle(row.id)}
                 aria-label={on ? '選択を外す' : '選択する'}
               >
-                {on ? '✓' : ''}
+                {on ? <PiCheck /> : ''}
               </button>
 
               {row.content}
@@ -159,7 +160,7 @@ export function EditToolbar({ selectedCount, removedCount, accent, onCancel, onD
 
   return (
     <div className="edit-toolbar">
-      <button className="round-btn" onClick={onCancel} aria-label="変更を取り消す" title="変更を取り消す">✕</button>
+      <button className="round-btn" onClick={onCancel} aria-label="変更を取り消す" title="変更を取り消す"><PiX /></button>
 
       <span className="edit-count">{status}</span>
 
@@ -170,7 +171,7 @@ export function EditToolbar({ selectedCount, removedCount, accent, onCancel, onD
           disabled={selectedCount === 0}
           aria-label="選択した項目を削除"
         >
-          🗑
+          <PiTrash />
         </button>
         <button
           className="round-btn"
@@ -179,7 +180,7 @@ export function EditToolbar({ selectedCount, removedCount, accent, onCancel, onD
           aria-label="保存"
           title="保存"
         >
-          ✓
+          <PiCheck />
         </button>
       </span>
     </div>

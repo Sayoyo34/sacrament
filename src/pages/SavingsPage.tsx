@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import {
+  PiArrowsClockwise, PiCheck, PiClipboardText, PiClock, PiClockCounterClockwise,
+  PiCoins, PiPalette, PiPiggyBank, PiScissors, PiSquaresFour, PiTarget, PiTimer,
+} from 'react-icons/pi'
 import type { ActiveTimer, Genre, GoalDraft, GoalRow, SavingsEvent, Task, TaskRepeat } from '../types'
 import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
@@ -219,7 +223,7 @@ export default function SavingsPage({
     const daily = t.repeat === 'daily'
     return (
       <>
-        <GenreDot genres={genres} genreId={t.genreId} fallback={t.timerMinutes > 0 ? '⏱' : '📋'} size={28} />
+        <GenreDot genres={genres} genreId={t.genreId} fallback={t.timerMinutes > 0 ? <PiTimer /> : <PiClipboardText />} size={28} />
         <span className="row-inline">
           <span className={`row-title${done && !daily ? ' struck' : ''}`}>{t.name}</span>
           {t.timerMinutes > 0 && <span className="row-chip">⏱{t.timerMinutes}分</span>}
@@ -264,7 +268,7 @@ export default function SavingsPage({
               onClick={() => onUncompleteTask(t.id)}
               title={daily ? '本日分を取り消す' : '達成を取り消す'}
             >
-              ✓
+              <PiCheck />
             </button>
           ) : t.timerMinutes > 0 ? (
             <button
@@ -626,7 +630,7 @@ export default function SavingsPage({
 
       {draft && (
         <DetailModal
-          icon={draftGenre?.icon ?? (draft.useTimer ? '⏱' : '📋')}
+          icon={draftGenre?.icon ?? (draft.useTimer ? <PiTimer /> : <PiClipboardText />)}
           color={draftGenre ? `${draftGenre.color}55` : theme.soft}
           name={draft.name}
           onNameChange={v => setDraft({ ...draft, name: v })}
@@ -644,7 +648,7 @@ export default function SavingsPage({
             </p>
           )}
           <DetailRow
-            icon="🔁"
+            icon={<PiArrowsClockwise />}
             label="繰り返し"
             value={<ReadValue>{draft.repeat === 'once' ? '一度きり' : '毎日'}</ReadValue>}
           >
@@ -660,7 +664,7 @@ export default function SavingsPage({
             </div>
           </DetailRow>
 
-          <DetailRow icon="💰" label="つもり貯金額" value={<ReadValue>{yen(draft.bonusAmount)}</ReadValue>}>
+          <DetailRow icon={<PiCoins />} label="つもり貯金額" value={<ReadValue>{yen(draft.bonusAmount)}</ReadValue>}>
             <input
               type="number"
               value={draft.bonusAmount || ''}
@@ -671,7 +675,7 @@ export default function SavingsPage({
           </DetailRow>
 
           <DetailRow
-            icon="⏱"
+            icon={<PiTimer />}
             label="タイマー"
             value={
               <ReadValue muted={!draft.useTimer}>
@@ -692,7 +696,7 @@ export default function SavingsPage({
           </DetailRow>
 
           {draft.useTimer && (
-            <DetailRow icon="🕒" label="時間（分）" value={null}>
+            <DetailRow icon={<PiClock />} label="時間（分）" value={null}>
               <input
                 type="number"
                 value={draft.timerMinutes || ''}
@@ -703,7 +707,7 @@ export default function SavingsPage({
           )}
 
           <DetailRow
-            icon="💙"
+            icon={<PiSquaresFour />}
             label="ジャンル"
             value={
               <ReadValue muted={!draftGenre}>
@@ -718,7 +722,7 @@ export default function SavingsPage({
           </DetailRow>
 
           <DetailRow
-            icon="🎯"
+            icon={<PiTarget />}
             label="貯金先"
             value={
               <ReadValue muted={!draft.goalId}>
@@ -778,16 +782,16 @@ export default function SavingsPage({
             if (!row) return null
             return (
               <>
-                <DetailRow icon="🐷" label="現在の貯金額" value={<ReadValue>{yen(row.kept)}</ReadValue>}>
+                <DetailRow icon={<PiPiggyBank />} label="現在の貯金額" value={<ReadValue>{yen(row.kept)}</ReadValue>}>
                   <span className="detail-value">{yen(row.kept)}</span>
                 </DetailRow>
                 {row.withdrawn > 0 && (
-                  <DetailRow icon="✂️" label="切り崩し済み" value={<ReadValue>{yen(row.withdrawn)}</ReadValue>}>
+                  <DetailRow icon={<PiScissors />} label="切り崩し済み" value={<ReadValue>{yen(row.withdrawn)}</ReadValue>}>
                     <span className="detail-value">{yen(row.withdrawn)}</span>
                   </DetailRow>
                 )}
                 {recentOf(row.id).length > 0 && (
-                  <DetailBlock icon="🕒" label="直近の記録">
+                  <DetailBlock icon={<PiClockCounterClockwise />} label="直近の記録">
                     <div className="inline-recent">
                       {recentOf(row.id).map(e => (
                         <div className="inline-recent-row" key={e.id}>
@@ -811,7 +815,7 @@ export default function SavingsPage({
           })()}
 
           <DetailRow
-            icon="🎯"
+            icon={<PiTarget />}
             label="目標額"
             value={
               <ReadValue muted={goalDraft.targetAmount === 0}>
@@ -829,7 +833,7 @@ export default function SavingsPage({
           </DetailRow>
 
           <DetailBlock
-            icon="😊"
+            icon={<PiPalette />}
             label="見た目"
             value={
               <span className="genre-dot" style={{ background: `${goalDraft.color}33`, width: 40, height: 40, fontSize: 20 }}>
@@ -961,7 +965,7 @@ export default function SavingsPage({
                             className={`sort-check${on ? ' on' : ''}`}
                             style={on ? { background: theme.accent, borderColor: theme.accent } : undefined}
                           >
-                            {on ? '✓' : ''}
+                            {on ? <PiCheck /> : ''}
                           </span>
                           <span className="sort-main">
                             <span className="sort-name">{e.label}</span>

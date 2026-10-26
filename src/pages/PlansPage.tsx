@@ -1,4 +1,8 @@
 import { useState, type ReactNode } from 'react'
+import {
+  PiArrowsClockwise, PiCalendarBlank, PiCoins, PiCreditCard,
+  PiNotePencil, PiNotepad, PiPiggyBank, PiSquaresFour, PiTag,
+} from 'react-icons/pi'
 import type { Genre, GoalRow, PlanItem, PlanKind, Tag, Wallet } from '../types'
 import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
@@ -170,7 +174,7 @@ export default function PlansPage({
   function rowBody(p: PlanItem, compact: boolean) {
     return (
       <>
-        <GenreDot genres={genres} genreId={p.genreId} fallback="🗒" />
+        <GenreDot genres={genres} genreId={p.genreId} fallback={<PiNotepad />} />
         <span className="row-main">
           <span className="row-title">
             {p.kind === 'monthly' && p.dayOfMonth > 0 ? `毎月${p.dayOfMonth}日 ` : ''}{p.name}
@@ -248,7 +252,7 @@ export default function PlansPage({
           style={open ? { borderColor: theme.accent } : undefined}
           onClick={() => openRow(key)}
         >
-          <GenreDot genres={genres} genreId={p.genreId} fallback="🗒" />
+          <GenreDot genres={genres} genreId={p.genreId} fallback={<PiNotepad />} />
           <span className="row-main">
             <span className={`row-title${finished ? ' struck' : ''}`}>{p.name}</span>
             <Progress ratio={p.estimatedCost > 0 ? p.deductedAmount / p.estimatedCost : 0} color={color} />
@@ -343,7 +347,7 @@ export default function PlansPage({
 
   /** 触らなくても自動で引かれているものを畳んでおくカード */
   function groupCard(
-    icon: string, title: string, sub: string, amount: number,
+    icon: ReactNode, title: string, sub: string, amount: number,
     open: boolean, onToggle: () => void, children: ReactNode,
   ) {
     return (
@@ -419,7 +423,7 @@ export default function PlansPage({
                 </div>
                 <ul className="item-list">
                   {monthly.length > 0 && groupCard(
-                    '🔁',
+                    <PiArrowsClockwise />,
                     `毎月の支出  ${monthly.length}件`,
                     '常に全額が引かれます',
                     monthlyTotal,
@@ -428,7 +432,7 @@ export default function PlansPage({
                     monthly.map(p => (
                       <li key={p.id}>
                         <button className="row-card" onClick={() => setInfoId(p.id)}>
-                          <GenreDot genres={genres} genreId={p.genreId} fallback="🗒" />
+                          <GenreDot genres={genres} genreId={p.genreId} fallback={<PiNotepad />} />
                           <span className="row-main">
                             <span className="row-title">
                               {p.dayOfMonth > 0 ? `毎月${p.dayOfMonth}日 ` : ''}{p.name}
@@ -444,7 +448,7 @@ export default function PlansPage({
                   )}
 
                   {goalRows.length > 0 && groupCard(
-                    '🐷',
+                    <PiPiggyBank />,
                     `つもり貯金  ${goalRows.length}件`,
                     '切り崩すと使える金額が増えます',
                     savingsKept,
@@ -462,7 +466,7 @@ export default function PlansPage({
       {/* 一覧タブ：内容の編集のみ */}
       {editing && (
         <DetailModal
-          icon={editGenre?.icon ?? '🗒'}
+          icon={editGenre?.icon ?? <PiNotepad />}
           color={editGenre ? `${editGenre.color}55` : theme.soft}
           name={editing.name}
           onNameChange={v => setEditing({ ...editing, name: v })}
@@ -473,7 +477,7 @@ export default function PlansPage({
           error={editError}
           onDelete={editing.id ? () => setDeleteTarget({ id: editing.id!, name: editing.name }) : undefined}
         >
-          <DetailRow icon="🔁" label="種類" value={<ReadValue>{editing.kind === 'once' ? '未定' : '毎月'}</ReadValue>}>
+          <DetailRow icon={<PiArrowsClockwise />} label="種類" value={<ReadValue>{editing.kind === 'once' ? '未定' : '毎月'}</ReadValue>}>
             <div className="type-toggle">
               <button
                 className={editing.kind !== 'once' ? 'btn-sub' : ''}
@@ -487,7 +491,7 @@ export default function PlansPage({
           </DetailRow>
 
           <DetailRow
-            icon="💰"
+            icon={<PiCoins />}
             label={editing.kind === 'once' ? '予測金額' : '金額'}
             value={<ReadValue>{yen(editing.estimatedCost)}</ReadValue>}
           >
@@ -503,7 +507,7 @@ export default function PlansPage({
           {editing.kind === 'monthly' && (
             <>
               <DetailRow
-                icon="📅"
+                icon={<PiCalendarBlank />}
                 label="引き落とし日"
                 value={
                   <ReadValue muted={editing.dayOfMonth === 0}>
@@ -521,7 +525,7 @@ export default function PlansPage({
                 />
               </DetailRow>
               <DetailRow
-                icon="💳"
+                icon={<PiCreditCard />}
                 label="口座"
                 value={
                   <ReadValue muted={!editing.walletId}>
@@ -538,7 +542,7 @@ export default function PlansPage({
           )}
 
           <DetailRow
-            icon="💙"
+            icon={<PiSquaresFour />}
             label="ジャンル"
             value={
               <ReadValue muted={!editGenre}>
@@ -553,7 +557,7 @@ export default function PlansPage({
           </DetailRow>
 
           <DetailBlock
-            icon="🏷"
+            icon={<PiTag />}
             label="タグ"
             value={editing.tagIds.length > 0
               ? <TagList tags={tags} ids={editing.tagIds} />
@@ -566,7 +570,7 @@ export default function PlansPage({
           </DetailBlock>
 
           <DetailBlock
-            icon="📝"
+            icon={<PiNotePencil />}
             label="メモ"
             value={<p className={editing.memo ? 'detail-memo' : 'summary'}>{editing.memo || 'なし'}</p>}
           >
@@ -589,21 +593,21 @@ export default function PlansPage({
       {/* 計算タブ：毎月の支出の詳細（金額は変えられない） */}
       {info && (
         <DetailModal
-          icon={infoGenre?.icon ?? '🗒'}
+          icon={infoGenre?.icon ?? <PiNotepad />}
           color={infoGenre ? `${infoGenre.color}55` : theme.soft}
           name={info.name}
           onClose={() => setInfoId(null)}
         >
-          <DetailRow icon="💰" label="金額">
+          <DetailRow icon={<PiCoins />} label="金額">
             <span className="detail-value">{yen(info.estimatedCost)}</span>
           </DetailRow>
           {info.dayOfMonth > 0 && (
-            <DetailRow icon="📅" label="引き落とし日">
+            <DetailRow icon={<PiCalendarBlank />} label="引き落とし日">
               <span className="detail-value">毎月{info.dayOfMonth}日</span>
             </DetailRow>
           )}
           {info.walletId && (
-            <DetailRow icon="💳" label="口座">
+            <DetailRow icon={<PiCreditCard />} label="口座">
               <span className="detail-value">{wallets.find(w => w.id === info.walletId)?.name ?? '未設定'}</span>
             </DetailRow>
           )}
