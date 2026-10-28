@@ -10,6 +10,8 @@
   text-align: left;
   background: var(--app-bg);
   box-shadow: 0 0 40px rgba(0,0,0,0.08);
+  /* iPhoneのノッチ・ステータスバーに上端が潜らないように（iOSアプリ／ホーム画面アプリ） */
+  padding-top: env(safe-area-inset-top);
 }
 
 .page-content {
@@ -1300,13 +1302,13 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 /* 詳細シートは画面上端から余白を取って全高で開く（.modal-overlay より後に置いて上書き） */
 .modal-overlay.detail-overlay {
   align-items: stretch;
-  padding-top: 2rem;
+  padding-top: calc(2rem + env(safe-area-inset-top));
 }
 
 .modal {
   background: var(--bg);
   border-radius: 20px 20px 0 0;
-  padding: 1.25rem 1.25rem 2.5rem;
+  padding: 1.25rem 1.25rem calc(2.5rem + env(safe-area-inset-bottom));
   width: 100%;
   max-width: 480px;
   box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
@@ -1414,7 +1416,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   display: flex;
   background: var(--bg);
   border-top: 1px solid var(--border);
+  /* ホームバーの分だけ下に伸ばし、ボタン自体は66pxの高さを保つ */
+  box-sizing: content-box;
   height: 66px;
+  padding-bottom: env(safe-area-inset-bottom);
   flex-shrink: 0;
 }
 

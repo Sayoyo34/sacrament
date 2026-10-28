@@ -11,6 +11,7 @@ import { GenreDot, GenreSelect } from '../components/Pickers'
 import type { LabelDraft } from '../components/LabelListPage'
 import EditableList, { EditToolbar, ReorderButton, type EditRow } from '../components/EditableList'
 import TimerOverlay from '../components/TimerOverlay'
+import { TIMER_ENABLED } from '../features'
 import { useEditSession } from '../useEditSession'
 import { ColorSwatches, IconSwatches } from '../components/Swatches'
 import { readableColor } from '../palette'
@@ -223,10 +224,10 @@ export default function SavingsPage({
     const daily = t.repeat === 'daily'
     return (
       <>
-        <GenreDot genres={genres} genreId={t.genreId} fallback={t.timerMinutes > 0 ? <PiTimer /> : <PiClipboardText />} size={28} />
+        <GenreDot genres={genres} genreId={t.genreId} fallback={TIMER_ENABLED && t.timerMinutes > 0 ? <PiTimer /> : <PiClipboardText />} size={28} />
         <span className="row-inline">
           <span className={`row-title${done && !daily ? ' struck' : ''}`}>{t.name}</span>
-          {t.timerMinutes > 0 && <span className="row-chip">⏱{t.timerMinutes}分</span>}
+          {TIMER_ENABLED && t.timerMinutes > 0 && <span className="row-chip">⏱{t.timerMinutes}分</span>}
           {t.bonusAmount > 0 && <span className="row-bonus">+¥{t.bonusAmount.toLocaleString()}</span>}
           {isArchived(t) && (
             <span className="row-chip">{Number(doneDate(t).slice(5, 7))}/{Number(doneDate(t).slice(8, 10))} 達成</span>
@@ -270,7 +271,7 @@ export default function SavingsPage({
             >
               <PiCheck />
             </button>
-          ) : t.timerMinutes > 0 ? (
+          ) : TIMER_ENABLED && t.timerMinutes > 0 ? (
             <button
               className="check-btn play"
               style={{ borderColor: theme.accent, color: theme.accent }}
@@ -630,7 +631,7 @@ export default function SavingsPage({
 
       {draft && (
         <DetailModal
-          icon={draftGenre?.icon ?? (draft.useTimer ? <PiTimer /> : <PiClipboardText />)}
+          icon={draftGenre?.icon ?? (TIMER_ENABLED && draft.useTimer ? <PiTimer /> : <PiClipboardText />)}
           color={draftGenre ? `${draftGenre.color}55` : theme.soft}
           name={draft.name}
           onNameChange={v => setDraft({ ...draft, name: v })}
@@ -674,7 +675,7 @@ export default function SavingsPage({
             />
           </DetailRow>
 
-          <DetailRow
+          {TIMER_ENABLED && <DetailRow
             icon={<PiTimer />}
             label="タイマー"
             value={
@@ -693,9 +694,9 @@ export default function SavingsPage({
                 onClick={() => setDraft({ ...draft, useTimer: true })}
               >使う</button>
             </div>
-          </DetailRow>
+          </DetailRow>}
 
-          {draft.useTimer && (
+          {TIMER_ENABLED && draft.useTimer && (
             <DetailRow icon={<PiClock />} label="時間（分）" value={null}>
               <input
                 type="number"

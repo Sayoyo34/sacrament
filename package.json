@@ -1,22 +1,29 @@
 {
   "name": "ofuse-techo",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:ios": "tsc -b && vite build --mode ios && cap sync ios",
+    "ios": "npm run build:ios && cap open ios",
     "lint": "oxlint",
     "preview": "vite preview",
     "generate-pwa-assets": "pwa-assets-generator"
   },
   "dependencies": {
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/ios": "^8.5.3",
+    "@capacitor/status-bar": "^8.0.4",
     "@supabase/supabase-js": "^2.112.3",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-icons": "^5.7.0"
+    "react-icons": "^5.7.0",
+    "react-router": "^8.3.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
