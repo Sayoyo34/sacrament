@@ -35,6 +35,20 @@ npm run preview   # ビルド結果をローカルでプレビュー
 npm run lint      # oxlintによるコードチェック
 ```
 
+## iOSアプリ（Capacitor）
+
+`ios/` に Xcode プロジェクトがあります。Web版と同じソースを `--mode ios`（`.env.ios`）でビルドして同梱します。
+
+```bash
+npm run build:ios   # iOS用にビルドして ios/ へコピー（cap sync ios）
+npm run ios         # 上に加えて Xcode を開く
+```
+
+App Store v1 では次の2つを外しています（`.env.ios` の値を `true` にすると戻ります）。
+
+- ログイン＋Supabaseクラウド同期（`VITE_FEATURE_CLOUD_SYNC`）
+- ④ 礼拝タイマー（`VITE_FEATURE_TIMER`）
+
 ## 技術スタック
 
 - React 19

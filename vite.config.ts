@@ -3,12 +3,14 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     // ホーム画面に追加して、圏外でも開けるようにする。
     // 新しい版は裏で取り込み、次に開いたときに切り替わる（入力中に勝手に再読み込みしない）
     VitePWA({
+      // iOSアプリ（Capacitor）はアプリ本体に全ファイルが入っているので Service Worker は不要
+      disable: mode === 'ios',
       registerType: 'autoUpdate',
       includeAssets: ['pwa-icon.svg', 'favicon.ico', 'apple-touch-icon-180x180.png'],
       manifest: {
@@ -35,4 +37,4 @@ export default defineConfig({
   ],
   // PORT が渡されればそれを使う（5173 が塞がっている時のプレビュー起動用）
   server: { port: Number(process.env.PORT) || 5173 },
-})
+}))
