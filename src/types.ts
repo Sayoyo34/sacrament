@@ -30,17 +30,17 @@ export interface LedgerEntry {
   memo: string;
 }
 
-/** 'once' = 未定（いつ買うか未定の欲しいもの）, 'monthly' = 毎月（定期支出） */
-export type PlanKind = 'once' | 'monthly';
+/** 'subscription' = サブスクなど固定額の定期支出, 'credit' = クレカの後払い（確定額は請求ごとに更新） */
+export type PlanCategory = 'subscription' | 'credit';
 
+/** 確定している定期の出費だけを置く。買うか未定のものは貯金目標（Goal）側で扱う */
 export interface PlanItem {
   id: string;
   name: string;
-  kind: PlanKind;
-  estimatedCost: number;
-  deductedAmount: number;   // 既に引いた金額（once のみ使用）
-  dayOfMonth: number;       // monthly の引き落とし日 1-31, 0 = 未設定
-  walletId: string;         // monthly の引き落とし口座, '' = 未設定
+  category: PlanCategory;
+  estimatedCost: number;    // credit は確定した請求額。確定前は 0 のままでよい
+  dayOfMonth: number;       // 引き落とし日 1-31, 0 = 未設定
+  walletId: string;         // 引き落とし口座, '' = 未設定
   genreId: string;
   tagIds: string[];
   memo: string;

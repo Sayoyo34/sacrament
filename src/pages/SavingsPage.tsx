@@ -312,9 +312,10 @@ export default function SavingsPage({
     ).slice(0, 3)
   }
 
-  function openAddSavings() {
+  /** 目標の詳細から開く。行き先はその目標に固定（選び直しはできない） */
+  function openAddSavings(goalId: string) {
     setSavingsError('')
-    setSavingsDraft({ amount: 0, goalId: '', date: todayStr(), label: '' })
+    setSavingsDraft({ amount: 0, goalId, date: todayStr(), label: '' })
   }
 
   function submitSavings() {
@@ -547,20 +548,9 @@ export default function SavingsPage({
 
             <div className="section-header">
               <h3>目標 ({goalSession.editing ? goalSession.draft.length : realGoals.length})</h3>
-              {!goalSession.editing && (
+              {!goalSession.editing && realGoals.length > 1 && (
                 <div className="header-actions">
-                  {realGoals.length > 1 && <ReorderButton onClick={() => goalSession.start(realGoals)} />}
-                  <button
-                    className="reorder-open"
-                    aria-label="目標を追加"
-                    title="目標を追加"
-                    onClick={() => {
-                      setGoalError('')
-                      setGoalDraft({ id: null, name: '', icon: '🐷', color: '#f472b6', targetAmount: 0 })
-                    }}
-                  >
-                    ＋
-                  </button>
+                  <ReorderButton onClick={() => goalSession.start(realGoals)} />
                 </div>
               )}
             </div>
@@ -586,7 +576,7 @@ export default function SavingsPage({
               />
             ) : realGoals.length === 0 ? (
               <p className="empty-hint">
-                貯金の行き先を作れます<br />右上の＋から追加できます
+                貯金の行き先を作れます<br />下の＋から追加できます
               </p>
             ) : (
               <ul className="item-list">
@@ -612,17 +602,20 @@ export default function SavingsPage({
                 <button
                   className="fab"
                   style={{ background: theme.accent, boxShadow: `0 4px 14px ${theme.accent}66` }}
-                  aria-label="貯金を追加"
-                  title="貯金を追加"
-                  onClick={openAddSavings}
+                  aria-label="目標を追加"
+                  title="目標を追加"
+                  onClick={() => {
+                    setGoalError('')
+                    setGoalDraft({ id: null, name: '', icon: '🐷', color: '#f472b6', targetAmount: 0 })
+                  }}
                 >
-                  ¥
+                  ＋
                 </button>
               </div>
             )}
 
             <p className="summary" style={{ textAlign: 'center', padding: '1rem 0' }}>
-              貯めるときは¥ボタンから。目標をタップすると詳細や直近の記録が見られます。
+              目標を作るときは＋ボタンから。目標をタップすると詳細から貯金を追加でき、直近の記録も見られます。
               切り崩しは「予定 &gt; 計算」タブ、記録の全体は「分析 &gt; 貯金履歴」から見られます
             </p>
           </>
@@ -783,6 +776,12 @@ export default function SavingsPage({
             if (!row) return null
             return (
               <>
+                <button
+                  style={{ width: '100%', marginBottom: '0.75rem', background: theme.accent }}
+                  onClick={() => openAddSavings(row.id)}
+                >
+                  ＋ 貯金を追加
+                </button>
                 <DetailRow icon={<PiPiggyBank />} label="現在の貯金額" value={<ReadValue>{yen(row.kept)}</ReadValue>}>
                   <span className="detail-value">{yen(row.kept)}</span>
                 </DetailRow>
@@ -873,18 +872,6 @@ export default function SavingsPage({
                   placeholder="0"
                   min={0}
                 />
-              </div>
-
-              <div className="form-row">
-                <label htmlFor="sv-goal">行き先</label>
-                <select
-                  id="sv-goal"
-                  value={savingsDraft.goalId}
-                  onChange={e => setSavingsDraft({ ...savingsDraft, goalId: e.target.value })}
-                >
-                  <option value="">あとで決める</option>
-                  {realGoals.map(g => <option key={g.id} value={g.id}>{g.icon} {g.name}</option>)}
-                </select>
               </div>
 
               <div className="form-row">
