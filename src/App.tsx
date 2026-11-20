@@ -257,23 +257,21 @@ export default function App() {
     }
   }
 
-  // ── 予定 ───────────────────────────────
+  // ── 予定（サブスク・クレカ後払いの確定額のみ） ──
   function savePlan(d: PlanDraft) {
     if (d.id === null) {
       const order = planItems.reduce((m, p) => Math.max(m, p.order), -1) + 1
       setPlanItems(prev => [...prev, {
-        id: generateId(), name: d.name, kind: d.kind, estimatedCost: d.estimatedCost,
-        deductedAmount: 0, dayOfMonth: d.dayOfMonth, walletId: d.walletId,
+        id: generateId(), name: d.name, category: d.category, estimatedCost: d.estimatedCost,
+        dayOfMonth: d.dayOfMonth, walletId: d.walletId,
         genreId: d.genreId, tagIds: d.tagIds, memo: d.memo, order,
       }])
       return
     }
     setPlanItems(prev => prev.map(p => p.id === d.id ? {
-      ...p, name: d.name, kind: d.kind, estimatedCost: d.estimatedCost,
+      ...p, name: d.name, category: d.category, estimatedCost: d.estimatedCost,
       dayOfMonth: d.dayOfMonth, walletId: d.walletId,
       genreId: d.genreId, tagIds: d.tagIds, memo: d.memo,
-      // 予測金額を下げたら引き済みがはみ出さないよう丸める
-      deductedAmount: Math.min(p.deductedAmount, d.estimatedCost),
     } : p))
   }
 
@@ -288,18 +286,6 @@ export default function App() {
       const orderById = new Map(orderedIds.map((id, i) => [id, i]))
       return kept.map(p => orderById.has(p.id) ? { ...p, order: orderById.get(p.id)! } : p)
     })
-  }
-
-  function deductPlan(id: string, amount: number) {
-    setPlanItems(prev => prev.map(p => p.id === id
-      ? { ...p, deductedAmount: Math.min(p.estimatedCost, p.deductedAmount + amount) }
-      : p))
-  }
-
-  function undoDeductPlan(id: string, amount: number) {
-    setPlanItems(prev => prev.map(p => p.id === id
-      ? { ...p, deductedAmount: Math.max(0, p.deductedAmount - amount) }
-      : p))
   }
 
   // ── 貯金（タスク） ─────────────────────
@@ -620,8 +606,6 @@ export default function App() {
             onSavePlan={savePlan}
             onRemovePlan={removePlan}
             onApplyPlanEdit={applyPlanEdit}
-            onDeduct={deductPlan}
-            onUndoDeduct={undoDeductPlan}
             onSaveGenre={saveGenre}
             onSaveTag={saveTag}
             onWithdrawSavings={withdrawSavings}

@@ -1,8 +1,8 @@
-import type { Genre, LedgerEntry, PlanItem, SavingsEvent, Tag, Task } from './types'
+import type { Genre, Goal, LedgerEntry, PlanItem, SavingsEvent, Tag, Task } from './types'
 import { generateId, todayStr } from './utils'
 
 const SCHEMA_KEY = 'schemaVersion'
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 4
 
 export function load<T>(key: string, fallback: T): T {
   try {
@@ -55,7 +55,49 @@ export function migrate() {
   if (from >= SCHEMA_VERSION) return
   if (from < 2) migrateV1toV2()
   if (from < 3) migrateV2toV3()
+  if (from < 4) migrateV3toV4()
   save(SCHEMA_KEY, SCHEMA_VERSION)
+}
+
+interface LegacyPlanItemV3 {
+  id: string; name: string; kind: 'once' | 'monthly'; estimatedCost: number; deductedAmount: number
+  dayOfMonth: number; walletId: string; genreId: string; tagIds: string[]; memo: string; order: number
+}
+
+/**
+ * v3 → v4: 出費予定は「サブスク／クレカ後払いの確定額」だけに絞り、
+ * 買うか未定だった欲しいもの（kind: 'once'）は貯金目標に引っ越す。
+ * 既に引いていた分（deductedAmount）は、貯めた記録として引き継ぐ。
+ */
+function migrateV3toV4() {
+  const legacyPlans = load<LegacyPlanItemV3[]>('planItems', [])
+  const goals = load<Goal[]>('goals', [])
+  const events = load<SavingsEvent[]>('savingsEvents', [])
+  const today = todayStr()
+
+  let order = goals.reduce((m, g) => Math.max(m, g.order), -1) + 1
+  const newGoals: Goal[] = []
+  const newEvents: SavingsEvent[] = []
+
+  legacyPlans.filter(p => p.kind === 'once').forEach(p => {
+    const goalId = generateId()
+    newGoals.push({ id: goalId, name: p.name, icon: '🎯', color: '#fb923c', targetAmount: p.estimatedCost, order: order++ })
+    if (p.deductedAmount > 0) {
+      newEvents.push({
+        id: generateId(), date: today, amount: p.deductedAmount, taskId: '', goalId,
+        label: '移行分（出費予定の未定から）',
+      })
+    }
+  })
+
+  const planItems: PlanItem[] = legacyPlans.filter(p => p.kind === 'monthly').map(p => ({
+    id: p.id, name: p.name, category: 'subscription' as const, estimatedCost: p.estimatedCost,
+    dayOfMonth: p.dayOfMonth, walletId: p.walletId, genreId: p.genreId, tagIds: p.tagIds, memo: p.memo, order: p.order,
+  }))
+
+  save('planItems', planItems)
+  save('goals', [...goals, ...newGoals])
+  save('savingsEvents', [...events, ...newEvents])
 }
 
 /** v2 → v3: つもり貯金に「貯金目標」という行き先の概念を足す */
@@ -88,7 +130,7 @@ function migrateV1toV2() {
   // ── 欲しいもの（未定）と定期支出（毎月）を予定に統合
   const bullets = load<LegacyBulletItem[]>('bulletItems', [])
   const recurring = load<LegacyRecurring[]>('recurringExpenses', [])
-  const planItems: PlanItem[] = [
+  const planItems: LegacyPlanItemV3[] = [
     ...bullets.map((b, i) => ({
       id: b.id,
       name: b.name,
