@@ -23,6 +23,16 @@
   src: url('/fonts/ZenMaruGothic-Bold.woff2') format('woff2');
 }
 
+/* ヒーローカードの大きい金額専用。0-9とコンマ・¥だけのサブセットなので1.5KB程度 */
+@font-face {
+  font-family: 'M PLUS Rounded 1c';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/fonts/MPlusRounded1c-Black.woff2') format('woff2');
+  unicode-range: U+00A5, U+002C, U+002D, U+002E, U+0030-0039;
+}
+
 :root {
   --text: #6b6375;
   --text-h: #08060d;

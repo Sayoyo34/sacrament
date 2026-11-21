@@ -168,8 +168,8 @@
 
 .hero-number {
   font-size: 2.1rem;
-  font-weight: 700;
-  font-family: Georgia, 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+  font-weight: 800;
+  font-family: 'M PLUS Rounded 1c', var(--sans);
   line-height: 1.1;
 }
 
@@ -1088,9 +1088,9 @@
 }
 
 .donut-total {
-  font-family: Georgia, 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+  font-family: 'M PLUS Rounded 1c', var(--sans);
   font-size: 1.2rem;
-  font-weight: 700;
+  font-weight: 800;
   fill: var(--text-h);
 }
 

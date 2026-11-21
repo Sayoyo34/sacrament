@@ -176,7 +176,7 @@ export default function LedgerPage({
           <span className="row-title">{w.name}</span>
         </span>
         <span className={`row-amount${w.balance < 0 ? ' remaining-negative' : ''}`}>
-          ¥{w.balance.toLocaleString()}
+          {w.balance.toLocaleString()}円
         </span>
       </>
     )
@@ -237,7 +237,7 @@ export default function LedgerPage({
                         </span>
                         <span className="row-right">
                           <span className={`row-amount ${e.amount < 0 ? 'remaining-negative' : 'remaining-positive'}`}>
-                            {e.amount > 0 ? '+' : '-'}¥{Math.abs(e.amount).toLocaleString()}
+                            {e.amount > 0 ? '+' : '-'}{Math.abs(e.amount).toLocaleString()}円
                           </span>
                           <span className="row-note">{wallet?.name ?? '?'}</span>
                         </span>

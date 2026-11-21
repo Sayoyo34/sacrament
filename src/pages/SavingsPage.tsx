@@ -228,7 +228,7 @@ export default function SavingsPage({
         <span className="row-inline">
           <span className={`row-title${done && !daily ? ' struck' : ''}`}>{t.name}</span>
           {TIMER_ENABLED && t.timerMinutes > 0 && <span className="row-chip">⏱{t.timerMinutes}分</span>}
-          {t.bonusAmount > 0 && <span className="row-bonus">+¥{t.bonusAmount.toLocaleString()}</span>}
+          {t.bonusAmount > 0 && <span className="row-bonus">+{t.bonusAmount.toLocaleString()}円</span>}
           {isArchived(t) && (
             <span className="row-chip">{Number(doneDate(t).slice(5, 7))}/{Number(doneDate(t).slice(8, 10))} 達成</span>
           )}
@@ -541,7 +541,7 @@ export default function SavingsPage({
                     {realGoals.length > 0 ? '目標に振り分けられます' : 'まず目標を作りましょう'}
                   </span>
                 </span>
-                <span className="inbox-amount">¥{inbox.kept.toLocaleString()}</span>
+                <span className="inbox-amount">{inbox.kept.toLocaleString()}円</span>
                 <span className="row-chevron">›</span>
               </button>
             )}
@@ -797,7 +797,7 @@ export default function SavingsPage({
                         <div className="inline-recent-row" key={e.id}>
                           <span className="inline-recent-name">{e.label}</span>
                           <span className="inline-recent-date">{e.date}</span>
-                          <span className="inline-recent-amount">+¥{e.amount.toLocaleString()}</span>
+                          <span className="inline-recent-amount">+{e.amount.toLocaleString()}円</span>
                           {e.taskId === '' ? (
                             <button className="link-btn" onClick={() => requestDeleteEvent(e)}>
                               取り消す
@@ -959,7 +959,7 @@ export default function SavingsPage({
                             <span className="sort-name">{e.label}</span>
                             <span className="sort-date">{e.date}</span>
                           </span>
-                          <span className="sort-amount">¥{e.amount.toLocaleString()}</span>
+                          <span className="sort-amount">{e.amount.toLocaleString()}円</span>
                         </button>
                       )
                     })}

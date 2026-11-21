@@ -147,7 +147,7 @@ export default function InlineDeduct({
 
       <div className="inline-preview">
         <span>{verb.past}あと残るお金</span>
-        <strong style={{ color: valid ? accent : 'var(--text-h)' }}>¥{after.toLocaleString()}</strong>
+        <strong style={{ color: valid ? accent : 'var(--text-h)' }}>{after.toLocaleString()}円</strong>
       </div>
 
       <div className="inline-actions">
