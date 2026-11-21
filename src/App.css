@@ -274,7 +274,7 @@
 
 .hero-calc > span:last-child {
   font-family: var(--mono);
-  font-weight: 700;
+  font-weight: 900;
   white-space: nowrap;
 }
 
@@ -366,7 +366,7 @@
   padding: 0;
   text-align: right;
   font-size: 1.1rem;
-  font-weight: 700;
+  font-weight: 900;
   font-family: var(--mono);
 }
 
@@ -445,7 +445,7 @@
 .inbox-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .inbox-title { font-size: 0.85rem; font-weight: 700; }
 .inbox-note { font-size: 0.7rem; color: var(--text); }
-.inbox-amount { font-size: 0.95rem; font-weight: 700; font-family: var(--mono); white-space: nowrap; }
+.inbox-amount { font-size: 0.95rem; font-weight: 900; font-family: var(--mono); white-space: nowrap; }
 
 /* 目標の行の右端に置く設定ボタン。主タップは「貯める」に譲る */
 .row-gear {
@@ -479,7 +479,7 @@
 
 .inline-recent-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inline-recent-date { color: var(--text); font-size: 0.68rem; white-space: nowrap; }
-.inline-recent-amount { font-family: var(--mono); font-weight: 700; white-space: nowrap; }
+.inline-recent-amount { font-family: var(--mono); font-weight: 900; white-space: nowrap; }
 .inline-recent-lock { font-size: 0.66rem; color: var(--text); white-space: nowrap; }
 
 /* 振り分けシートの記録リスト */
@@ -517,7 +517,7 @@
 .sort-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .sort-name { font-size: 0.8rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sort-date { font-size: 0.66rem; color: var(--text); }
-.sort-amount { font-size: 0.85rem; font-weight: 700; font-family: var(--mono); white-space: nowrap; }
+.sort-amount { font-size: 0.85rem; font-weight: 900; font-family: var(--mono); white-space: nowrap; }
 
 /* ── Cards ────────────────────────────── */
 .card {
@@ -634,7 +634,7 @@
 
 .row-amount {
   font-size: 0.9rem;
-  font-weight: 700;
+  font-weight: 900;
   font-family: var(--mono);
   color: var(--text-h);
   white-space: nowrap;
@@ -1028,7 +1028,7 @@
   display: block;
   text-align: right;
   font-family: var(--mono);
-  font-weight: 700;
+  font-weight: 900;
   font-size: 0.95rem;
   color: var(--text-h);
 }
@@ -1092,7 +1092,7 @@
 .donut-total {
   font-family: var(--mono);
   font-size: 1.2rem;
-  font-weight: 700;
+  font-weight: 900;
   fill: var(--text-h);
 }
 
@@ -1421,7 +1421,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   justify-content: space-between;
   align-items: baseline;
   font-size: 1.05rem;
-  font-weight: 700;
+  font-weight: 900;
   font-family: var(--mono);
   color: var(--text-h);
 }
@@ -1564,7 +1564,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   position: absolute;
   font-size: 2.6rem;
   font-family: var(--mono);
-  font-weight: 700;
+  font-weight: 900;
   letter-spacing: 2px;
   color: var(--text-h);
 }
