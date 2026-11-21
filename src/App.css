@@ -8,10 +8,24 @@
   margin: 0 auto;
   flex: 1;
   text-align: left;
-  background: var(--app-bg);
+  /* クラフト紙の質感。インラインSVGなのでオフライン時も読み込み不要 */
+  background-color: var(--app-bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
   box-shadow: 0 0 40px rgba(0,0,0,0.08);
   /* iPhoneのノッチ・ステータスバーに上端が潜らないように（iOSアプリ／ホーム画面アプリ） */
   padding-top: env(safe-area-inset-top);
+}
+
+/* 手帖の綴じ目（ミシン目）。画面最上部に常駐させ、タブを切り替えても動かない */
+.app-shell::before {
+  content: '';
+  display: block;
+  flex-shrink: 0;
+  height: 8px;
+  background-image: radial-gradient(circle, var(--accent-border) 1.6px, transparent 1.8px);
+  background-size: 15px 8px;
+  background-position: 6px 2px;
+  background-repeat: repeat-x;
 }
 
 .page-content {
@@ -114,16 +128,46 @@
   transition: background 0.15s;
 }
 
-.top-tab.active { color: #fff; }
+.top-tab.active {
+  color: #fff;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.18), 0 1px 0 rgba(255,255,255,0.25);
+}
 
 /* ── Hero card ────────────────────────── */
 .hero-card {
-  border-radius: 18px;
-  padding: 1.1rem 1.25rem 1.25rem;
+  position: relative;
+  border-radius: 0 0 18px 18px;
+  padding: 1.5rem 1.25rem 1.25rem;
   margin-bottom: 1rem;
   /* テーマ色（茶）の範囲だけで振る。ピンク寄りの端を残すとジャンル色と競合する */
   background: linear-gradient(115deg, #f5e9da 0%, #ecd7bd 55%, #dfc3a0 100%);
+  border: 2px dashed var(--accent-border);
+  border-top: none;
   color: #1a1a2e;
+  /* 手でちぎったノート上端のギザギザ */
+  clip-path: polygon(
+    0% 8px, 7% 0px, 14% 8px, 21% 0px, 28% 8px, 35% 0px, 42% 8px, 49% 0px,
+    56% 8px, 63% 0px, 70% 8px, 77% 0px, 84% 8px, 91% 0px, 98% 8px, 100% 4px,
+    100% 100%, 0% 100%
+  );
+}
+
+/* マスキングテープ風のアクセント */
+.hero-card::after {
+  content: '';
+  position: absolute;
+  top: 10px;
+  right: 24px;
+  width: 58px;
+  height: 18px;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255,255,255,0.4) 0 4px,
+    rgba(216,163,152,0.88) 4px 10px
+  );
+  transform: rotate(6deg);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+  pointer-events: none;
 }
 
 .hero-label {
@@ -135,8 +179,7 @@
 .hero-number {
   font-size: 2.1rem;
   font-weight: 700;
-  font-family: var(--mono);
-  letter-spacing: -1px;
+  font-family: Georgia, 'Hiragino Mincho ProN', 'Yu Mincho', serif;
   line-height: 1.1;
 }
 
@@ -489,6 +532,7 @@
 /* ── Cards ────────────────────────────── */
 .card {
   background: var(--bg);
+  border: 1.5px dashed var(--accent-border);
   border-radius: 14px;
   padding: 1rem;
   margin-bottom: 0.75rem;
@@ -525,7 +569,7 @@
   gap: 0.7rem;
   width: 100%;
   background: var(--bg);
-  border: none;
+  border: 1.5px dashed var(--accent-border);
   border-radius: 12px;
   padding: 0.7rem 0.9rem;
   margin-bottom: 0.5rem;
@@ -1046,12 +1090,22 @@
 .chart-wrap {
   display: flex;
   justify-content: center;
-  padding: 1rem 0 1.25rem;
+  padding: 1.5rem 0 1.25rem;
+  margin-bottom: 1rem;
+  background: var(--code-bg);
+  border: 2px dashed var(--accent-border);
+  border-top: none;
+  border-radius: 0 0 18px 18px;
+  clip-path: polygon(
+    0% 8px, 7% 0px, 14% 8px, 21% 0px, 28% 8px, 35% 0px, 42% 8px, 49% 0px,
+    56% 8px, 63% 0px, 70% 8px, 77% 0px, 84% 8px, 91% 0px, 98% 8px, 100% 4px,
+    100% 100%, 0% 100%
+  );
 }
 
 .donut-total {
-  font-family: var(--mono);
-  font-size: 1.15rem;
+  font-family: Georgia, 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+  font-size: 1.2rem;
   font-weight: 700;
   fill: var(--text-h);
 }
@@ -1264,6 +1318,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 }
 
 .fab {
+  position: relative;
   pointer-events: all;
   width: 56px;
   height: 56px;
@@ -1278,6 +1333,16 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   padding: 0;
   cursor: pointer;
   transition: transform 0.15s;
+}
+
+/* 布ボタンのステッチ風リング */
+.fab::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(255,255,255,0.55);
+  pointer-events: none;
 }
 
 .fab:hover { transform: scale(1.06); opacity: 1; }
