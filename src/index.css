@@ -23,14 +23,14 @@
   src: url('/fonts/ZenMaruGothic-Bold.woff2') format('woff2');
 }
 
-/* ヒーローカードの大きい金額専用。0-9とコンマ・¥だけのサブセットなので1.5KB程度 */
+/* 金額・数字表示専用。数字と記号(¥ , . - : % −)だけのサブセットなので2KB弱 */
 @font-face {
   font-family: 'M PLUS Rounded 1c';
   font-style: normal;
   font-weight: 800;
   font-display: swap;
   src: url('/fonts/MPlusRounded1c-Black.woff2') format('woff2');
-  unicode-range: U+00A5, U+002C, U+002D, U+002E, U+0030-0039;
+  unicode-range: U+0025, U+002B, U+002C, U+002D, U+002E, U+0030-0039, U+003A, U+00A5, U+2212;
 }
 
 :root {
@@ -50,7 +50,7 @@
 
   --sans: 'Zen Maru Gothic', system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: 'Zen Maru Gothic', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --mono: 'M PLUS Rounded 1c', ui-monospace, Consolas, monospace;
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
