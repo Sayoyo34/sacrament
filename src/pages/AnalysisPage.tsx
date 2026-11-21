@@ -195,7 +195,7 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
                             </span>
                           </span>
                           <span className="row-right">
-                            <span className="row-amount">¥{s.value.toLocaleString()}</span>
+                            <span className="row-amount">{s.value.toLocaleString()}円</span>
                             <span className="row-amount" style={{ color: readableColor(s.color), fontSize: '0.8rem' }}>{pct}%</span>
                           </span>
                         </div>
@@ -218,7 +218,7 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
                                 <span className="bar-fill" style={{ width: `${(value / byTag[0].value) * 100}%`, background: tag.color }} />
                               </span>
                             </span>
-                            <span className="row-amount">¥{value.toLocaleString()}</span>
+                            <span className="row-amount">{value.toLocaleString()}円</span>
                           </button>
                         </li>
                       ))}
@@ -250,16 +250,16 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
             <div className="card">
               <div className="calc-row">
                 <span>{monthLabel(month)}に貯めた額</span>
-                <span>¥{monthEarned.toLocaleString()}</span>
+                <span>{monthEarned.toLocaleString()}円</span>
               </div>
               <div className="calc-row">
                 <span>切り崩した額</span>
-                <span>−¥{monthWithdrawn.toLocaleString()}</span>
+                <span>−{monthWithdrawn.toLocaleString()}円</span>
               </div>
               <hr className="divider" />
               <div className="calc-total">
                 <span>差し引き</span>
-                <span>¥{(monthEarned - monthWithdrawn).toLocaleString()}</span>
+                <span>{(monthEarned - monthWithdrawn).toLocaleString()}円</span>
               </div>
             </div>
 
@@ -278,7 +278,7 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
                           <span className="bar-fill" style={{ width: `${(value / monthEarned) * 100}%`, background: theme.accent }} />
                         </span>
                       </span>
-                      <span className="row-amount">¥{value.toLocaleString()}</span>
+                      <span className="row-amount">{value.toLocaleString()}円</span>
                     </div>
                   </li>
                 ))}
@@ -340,7 +340,7 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
                         className="row-amount"
                         style={{ color: ev.amount < 0 ? '#e53e3e' : theme.accent }}
                       >
-                        {ev.amount < 0 ? '−' : '+'}¥{Math.abs(ev.amount).toLocaleString()}
+                        {ev.amount < 0 ? '−' : '+'}{Math.abs(ev.amount).toLocaleString()}円
                       </span>
                     </div>
                   </li>

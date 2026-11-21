@@ -177,7 +177,7 @@ export default function PlansPage({
           </span>
           <span className="row-sub"><TagList tags={tags} ids={p.tagIds} /></span>
         </span>
-        {!compact && <span className="row-right"><span className="row-amount">¥{p.estimatedCost.toLocaleString()}</span></span>}
+        {!compact && <span className="row-right"><span className="row-amount">{p.estimatedCost.toLocaleString()}円</span></span>}
       </>
     )
   }
@@ -251,8 +251,8 @@ export default function PlansPage({
             <Progress ratio={g.earned > 0 ? g.withdrawn / g.earned : 0} color={g.color} />
           </span>
           <span className="row-right">
-            <span className="row-note">切崩 ¥{g.withdrawn.toLocaleString()} / {g.earned.toLocaleString()}</span>
-            <span className="row-amount" style={{ color: readableColor(g.color) }}>残 ¥{g.kept.toLocaleString()}</span>
+            <span className="row-note">切崩 {g.withdrawn.toLocaleString()}円 / {g.earned.toLocaleString()}円</span>
+            <span className="row-amount" style={{ color: readableColor(g.color) }}>残 {g.kept.toLocaleString()}円</span>
           </span>
           <span className="row-chevron">{open ? '⌃' : '⌄'}</span>
         </button>
@@ -301,7 +301,7 @@ export default function PlansPage({
             <span className="row-title">{title}</span>
             <span className="row-sub">{sub}</span>
           </span>
-          <span className="row-amount">−¥{amount.toLocaleString()}</span>
+          <span className="row-amount">−{amount.toLocaleString()}円</span>
           <span className="row-chevron">{open ? '⌃' : '⌄'}</span>
         </button>
         {open && <ul className="item-list sub-list">{children}</ul>}
@@ -322,7 +322,7 @@ export default function PlansPage({
               {wallets.find(w => w.id === p.walletId)?.name ?? '口座未設定'}
             </span>
           </span>
-          <span className="row-amount">¥{p.estimatedCost.toLocaleString()}</span>
+          <span className="row-amount">{p.estimatedCost.toLocaleString()}円</span>
         </button>
       </li>
     )

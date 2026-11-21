@@ -54,7 +54,7 @@ export function Donut({ slices, total, caption, size = 190, thickness = 34 }: {
         })
       )}
       <text x={cx} y={cy - 2} textAnchor="middle" className="donut-total">
-        ¥{total.toLocaleString()}
+        {total.toLocaleString()}円
       </text>
       <text x={cx} y={cy + 18} textAnchor="middle" className="donut-caption">
         {caption}
