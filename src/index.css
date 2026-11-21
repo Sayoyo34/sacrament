@@ -1,5 +1,28 @@
 *, *::before, *::after { box-sizing: border-box; }
 
+/* 自前で同梱（public/fonts）。Google Fonts には出ず、オフライン起動でも読み込める */
+@font-face {
+  font-family: 'Zen Maru Gothic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/ZenMaruGothic-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Zen Maru Gothic';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/ZenMaruGothic-Medium.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Zen Maru Gothic';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/ZenMaruGothic-Bold.woff2') format('woff2');
+}
+
 :root {
   --text: #6b6375;
   --text-h: #08060d;
@@ -15,8 +38,8 @@
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --sans: 'Zen Maru Gothic', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --heading: 'Zen Maru Gothic', system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
   font: 18px/145% var(--sans);

@@ -136,35 +136,25 @@
 /* ── Hero card ────────────────────────── */
 .hero-card {
   position: relative;
-  border-radius: 0 0 18px 18px;
-  padding: 1.5rem 1.25rem 1.25rem;
+  border-radius: 18px;
+  padding: 1.1rem 1.25rem 1.25rem;
   margin-bottom: 1rem;
   /* テーマ色（茶）の範囲だけで振る。ピンク寄りの端を残すとジャンル色と競合する */
   background: linear-gradient(115deg, #f5e9da 0%, #ecd7bd 55%, #dfc3a0 100%);
-  border: 2px dashed var(--accent-border);
-  border-top: none;
+  border: 1.5px dashed rgba(138, 90, 59, 0.3);
   color: #1a1a2e;
-  /* 手でちぎったノート上端のギザギザ */
-  clip-path: polygon(
-    0% 8px, 7% 0px, 14% 8px, 21% 0px, 28% 8px, 35% 0px, 42% 8px, 49% 0px,
-    56% 8px, 63% 0px, 70% 8px, 77% 0px, 84% 8px, 91% 0px, 98% 8px, 100% 4px,
-    100% 100%, 0% 100%
-  );
 }
 
-/* マスキングテープ風のアクセント */
+/* マスキングテープ風のアクセント（Figma案通り：角に貼ったシール） */
 .hero-card::after {
   content: '';
   position: absolute;
-  top: 10px;
-  right: 24px;
-  width: 58px;
-  height: 18px;
-  background: repeating-linear-gradient(
-    45deg,
-    rgba(255,255,255,0.4) 0 4px,
-    rgba(216,163,152,0.88) 4px 10px
-  );
+  top: -8px;
+  right: 26px;
+  width: 54px;
+  height: 16px;
+  background: rgba(216, 163, 152, 0.85);
+  border-radius: 2px;
   transform: rotate(6deg);
   box-shadow: 0 1px 2px rgba(0,0,0,0.12);
   pointer-events: none;
@@ -1090,17 +1080,11 @@
 .chart-wrap {
   display: flex;
   justify-content: center;
-  padding: 1.5rem 0 1.25rem;
+  padding: 1.25rem 0;
   margin-bottom: 1rem;
   background: var(--code-bg);
-  border: 2px dashed var(--accent-border);
-  border-top: none;
-  border-radius: 0 0 18px 18px;
-  clip-path: polygon(
-    0% 8px, 7% 0px, 14% 8px, 21% 0px, 28% 8px, 35% 0px, 42% 8px, 49% 0px,
-    56% 8px, 63% 0px, 70% 8px, 77% 0px, 84% 8px, 91% 0px, 98% 8px, 100% 4px,
-    100% 100%, 0% 100%
-  );
+  border: 1.5px dashed rgba(138, 90, 59, 0.3);
+  border-radius: 18px;
 }
 
 .donut-total {
