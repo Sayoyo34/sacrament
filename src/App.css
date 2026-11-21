@@ -1090,9 +1090,9 @@
 }
 
 .donut-total {
-  font-family: 'M PLUS Rounded 1c', var(--sans);
+  font-family: var(--mono);
   font-size: 1.2rem;
-  font-weight: 800;
+  font-weight: 700;
   fill: var(--text-h);
 }
 

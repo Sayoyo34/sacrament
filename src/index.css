@@ -50,7 +50,7 @@
 
   --sans: 'Zen Maru Gothic', system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: 'Zen Maru Gothic', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: 'M PLUS Rounded 1c', ui-monospace, Consolas, monospace;
+  --mono: 'Zen Maru Gothic', ui-monospace, Consolas, monospace;
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
