@@ -4,8 +4,8 @@ import { withinAmount } from '../validation'
 
 /** 動詞の活用ぶんだけ持つ。「引く」→「引いたあと残るお金」 */
 interface Verb {
-  now: string   // 引く / 切り崩す / 戻す
-  past: string  // 引いた / 切り崩した / 戻した
+  now: string   // 引く / 取り崩す / 戻す
+  past: string  // 引いた / 取り崩した / 戻した
 }
 
 type Mode = 'deduct' | 'undo'
@@ -18,7 +18,7 @@ interface Props {
   accent: string
   /** 現在の「このあと使える金額」。プレビューの土台 */
   budget: number
-  /** 引く操作が使える金額に与える符号。予定は −1、つもり貯金の切り崩しは +1 */
+  /** 引く操作が使える金額に与える符号。予定は −1、つもり貯金の取り崩しは +1 */
   budgetSign: 1 | -1
   deductVerb?: Verb
   /** 金額欄の上に出す補足（貯めた額・残りなど） */
@@ -28,7 +28,7 @@ interface Props {
   /** 入力に応じた増減額を親に伝える。null で通常表示に戻す */
   onPreview: (delta: number | null) => void
   onClose: () => void
-  /** 渡すと確定前に確認をはさむ（つもり貯金の切り崩し用） */
+  /** 渡すと確定前に確認をはさむ（つもり貯金の取り崩し用） */
   confirmLabel?: (amount: number) => string
 }
 

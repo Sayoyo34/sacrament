@@ -480,6 +480,7 @@
 .inline-recent-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inline-recent-date { color: var(--text); font-size: 0.68rem; white-space: nowrap; }
 .inline-recent-amount { font-family: var(--mono); font-weight: 700; white-space: nowrap; }
+.inline-recent-amount.negative { color: #b3261e; }
 .inline-recent-lock { font-size: 0.66rem; color: var(--text); white-space: nowrap; }
 
 /* 振り分けシートの記録リスト */
@@ -972,18 +973,42 @@
   flex-shrink: 0;
 }
 
+.detail-icon-wrap { position: relative; flex-shrink: 0; }
+
+.detail-icon-edit {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text-h);
+  border: 2px solid rgba(255,255,255,0.9);
+  font-size: 0.65rem;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+
 .detail-name {
   flex: 1;
   min-width: 0;
   background: transparent;
   border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
   font-size: 1.15rem;
   font-weight: 700;
   color: #1a1a2e;
-  padding: 0;
+  padding: 0 0 0.15rem 0.25rem;
 }
 
-.detail-name:focus { border: none; }
+.detail-name:focus { outline: none; }
+
+.detail-name-edit { border-bottom-color: rgba(26,26,46,0.35); }
 
 .detail-body {
   flex: 1;
@@ -1065,6 +1090,28 @@
 }
 
 .detail-block-body { margin-top: 0.6rem; }
+
+/* 貯金目標の詳細シート専用: 複数の .detail-row を1枚の破線カードにまとめる */
+.stat-card {
+  background: var(--bg);
+  border: 1.5px dashed var(--border);
+  border-radius: 12px;
+  margin-bottom: 0.6rem;
+  overflow: hidden;
+}
+
+.stat-card .detail-row {
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  margin-bottom: 0;
+  border-bottom: 1.5px dashed var(--border);
+}
+
+.stat-card .detail-row:last-child { border-bottom: none; }
+
+/* 貯金目標の詳細シート専用: .detail-block の実線の影を破線の枠に替える */
+.dashed-card > .detail-block { box-shadow: none; border: 1.5px dashed var(--border); }
 
 /* ── 分析：グラフ ─────────────────────── */
 .month-picker { margin-bottom: 0.75rem; }

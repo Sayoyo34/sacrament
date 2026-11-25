@@ -104,7 +104,7 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
     .filter(e => monthOf(e.date) === month && e.amount < 0)
     .reduce((s, e) => s + Math.abs(e.amount), 0)
 
-  // その月の貯金の記録。切り崩しも含めて新しい順に並べる
+  // その月の貯金の記録。取り崩しも含めて新しい順に並べる
   const monthEvents = byNewest(
     savingsEvents.filter(e => monthOf(e.date) === month),
     e => e.date,
@@ -253,7 +253,7 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
                 <span>{monthEarned.toLocaleString()}円</span>
               </div>
               <div className="calc-row">
-                <span>切り崩した額</span>
+                <span>取り崩した額</span>
                 <span>−{monthWithdrawn.toLocaleString()}円</span>
               </div>
               <hr className="divider" />

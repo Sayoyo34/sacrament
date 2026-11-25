@@ -362,10 +362,6 @@ export default function App() {
     }])
   }
 
-  function removeSavingsEvent(id: string) {
-    setSavingsEvents(prev => prev.filter(e => e.id !== id))
-  }
-
   /** 行き先を決めずに貯めた分を、あとから目標へ振り分ける */
   function assignSavings(eventIds: string[], goalId: string) {
     setSavingsEvents(prev => prev.map(e => eventIds.includes(e.id) ? { ...e, goalId } : e))
@@ -407,18 +403,18 @@ export default function App() {
     if (removedIds.length) unassignGoals(removedIds)
   }
 
-  // ── つもり貯金の切り崩し ────────────────
-  /** 切り崩しはマイナス額のイベントとして積む（履歴として残す） */
-  function withdrawSavings(goalId: string, amount: number) {
+  // ── つもり貯金の取り崩し ────────────────
+  /** 取り崩しはマイナス額のイベントとして積む（履歴として残す） */
+  function withdrawSavings(goalId: string, amount: number, label?: string) {
     const stat = savingsByGoal.get(goalId) ?? { earned: 0, withdrawn: 0 }
     const capped = Math.min(amount, stat.earned - stat.withdrawn)
     if (capped <= 0) return
     setSavingsEvents(prev => [...prev, {
-      id: generateId(), date: todayStr(), amount: -capped, taskId: '', goalId, label: '切り崩し',
+      id: generateId(), date: todayStr(), amount: -capped, taskId: '', goalId, label: label?.trim() || '取り崩し',
     }])
   }
 
-  /** 新しい切り崩しから順に取り消す。使い切ったイベントは消す */
+  /** 新しい取り崩しから順に取り消す。使い切ったイベントは消す */
   function undoWithdrawSavings(goalId: string, amount: number) {
     const stat = savingsByGoal.get(goalId) ?? { earned: 0, withdrawn: 0 }
     let left = Math.min(amount, stat.withdrawn)
@@ -526,7 +522,7 @@ export default function App() {
   }
 
   const totalBalance = wallets.reduce((s, w) => s + w.balance, 0)
-  // 貯めた額（プラス）と切り崩した額（マイナス）を分けて持ち、差し引きが取っておく額になる
+  // 貯めた額（プラス）と取り崩した額（マイナス）を分けて持ち、差し引きが取っておく額になる
   const savingsEarned = savingsEvents.reduce((s, e) => s + Math.max(0, e.amount), 0)
   const savingsWithdrawn = savingsEvents.reduce((s, e) => s + Math.max(0, -e.amount), 0)
 
@@ -590,9 +586,9 @@ export default function App() {
             onRemoveGoals={removeGoals}
             onApplyGoalEdit={applyGoalEdit}
             onAddSavings={addSavings}
-            onRemoveSavingsEvent={removeSavingsEvent}
             onAssignSavings={assignSavings}
             onSaveGenre={saveGenre}
+            onWithdrawSavings={withdrawSavings}
           />
         )}
         {page === 'plans' && (

@@ -81,7 +81,7 @@ export default function PlansPage({
   const session = useEditSession<PlanItem>()
 
   // ── 計算タブの状態 ─────────────────────
-  const [openId, setOpenId] = useState<string | null>(null)     // 貯金目標の切り崩しパネル（goal:〜）
+  const [openId, setOpenId] = useState<string | null>(null)     // 貯金目標の取り崩しパネル（goal:〜）
   const [showBreakdown, setShowBreakdown] = useState(false)     // サマリーの内訳
   const [openSubs, setOpenSubs] = useState(false)
   const [openCredit, setOpenCredit] = useState(false)
@@ -231,7 +231,7 @@ export default function PlansPage({
   }
 
   // ── 計算タブ ───────────────────────────
-  /** 切り崩し／戻すを行の下に開く貯金の行 */
+  /** 取り崩し／戻すを行の下に開く貯金の行 */
   function renderGoalRow(g: GoalRow) {
     const key = `goal:${g.id || '__none'}`
     const open = openId === key
@@ -251,7 +251,7 @@ export default function PlansPage({
             <Progress ratio={g.earned > 0 ? g.withdrawn / g.earned : 0} color={g.color} />
           </span>
           <span className="row-right">
-            <span className="row-note">切崩 {g.withdrawn.toLocaleString()}円 / {g.earned.toLocaleString()}円</span>
+            <span className="row-note">取崩 {g.withdrawn.toLocaleString()}円 / {g.earned.toLocaleString()}円</span>
             <span className="row-amount" style={{ color: readableColor(g.color) }}>残 {g.kept.toLocaleString()}円</span>
           </span>
           <span className="row-chevron">{open ? '⌃' : '⌄'}</span>
@@ -264,14 +264,14 @@ export default function PlansPage({
             accent={theme.accent}
             budget={remaining}
             budgetSign={1}
-            deductVerb={{ now: '切り崩す', past: '切り崩した' }}
+            deductVerb={{ now: '取り崩す', past: '取り崩した' }}
             info={
               <>
                 <p className="summary">
-                  貯めた額 {yen(g.earned)}　切り崩し済み {yen(g.withdrawn)}　残り {yen(g.kept)}
+                  貯めた額 {yen(g.earned)}　取り崩し済み {yen(g.withdrawn)}　残り {yen(g.kept)}
                   {g.targetAmount > 0 && `　目標 ${yen(g.targetAmount)}`}
                 </p>
-                <p className="summary">切り崩した分は取っておく額から外れ、その分だけ使える金額が増えます。</p>
+                <p className="summary">取り崩した分は取っておく額から外れ、その分だけ使える金額が増えます。</p>
               </>
             }
             onDeduct={amount => onWithdrawSavings(g.id, amount)}
@@ -279,7 +279,7 @@ export default function PlansPage({
             onPreview={setPreview}
             onClose={() => setOpenId(null)}
             confirmLabel={amount =>
-              `「${g.name}」から ${yen(amount)} を切り崩します。取っておくはずだったお金です。本当によろしいですか？`}
+              `「${g.name}」から ${yen(amount)} を取り崩します。取っておくはずだったお金です。本当によろしいですか？`}
           />
         )}
       </li>
@@ -398,7 +398,7 @@ export default function PlansPage({
                   {goalRows.length > 0 && groupCard(
                     <PiPiggyBank />,
                     `つもり貯金  ${goalRows.length}件`,
-                    '切り崩すと使える金額が増えます',
+                    '取り崩すと使える金額が増えます',
                     savingsKept,
                     openSavings,
                     () => setOpenSavings(v => !v),
