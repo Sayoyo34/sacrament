@@ -485,7 +485,7 @@ export default function PlansPage({
               <button
                 className={editing.frequency !== 'yearly' ? 'btn-sub' : ''}
                 onClick={() => setEditing({ ...editing, frequency: 'yearly' })}
-              >毎年（ファンクラブの年会費など）</button>
+              >毎年</button>
             </div>
           </DetailRow>
 
