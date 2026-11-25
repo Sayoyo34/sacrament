@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  PiArrowsClockwise, PiCheck, PiClipboardText, PiClock, PiClockCounterClockwise,
-  PiCoins, PiPalette, PiPiggyBank, PiScissors, PiSquaresFour, PiTarget, PiTimer,
+  PiArrowsClockwise, PiCaretDown, PiCheck, PiClipboardText, PiClock, PiClockCounterClockwise,
+  PiCoins, PiFlagCheckered, PiPiggyBank, PiSquaresFour, PiTarget, PiTimer,
 } from 'react-icons/pi'
 import type { ActiveTimer, Genre, GoalDraft, GoalRow, SavingsEvent, Task, TaskRepeat } from '../types'
 import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/DetailModal'
@@ -18,8 +18,8 @@ import { readableColor } from '../palette'
 import TopTabs from '../components/TopTabs'
 import { useSwipeTabs } from '../useSwipeNav'
 import { themeOf } from '../theme'
-import { byNewest, recentDays, todayStr, yen } from '../utils'
-import { firstError, notNegative, positive, required } from '../validation'
+import { byNewest, fullDateLabel, recentDays, todayStr, yen } from '../utils'
+import { firstError, notNegative, positive, required, withinAmount } from '../validation'
 
 type Tab = 'tasks' | 'goals'
 
@@ -42,6 +42,13 @@ interface SavingsDraft {
   label: string
 }
 
+/** 目標詳細から直接取り崩すときの入力内容。戻す手段はなく、確定後は取り消せない */
+interface WithdrawDraft {
+  goalId: string
+  amount: number
+  label: string
+}
+
 interface Props {
   tasks: Task[]
   savingsEvents: SavingsEvent[]
@@ -59,25 +66,28 @@ interface Props {
   onRemoveGoals: (ids: string[]) => void
   onApplyGoalEdit: (orderedIds: string[], removedIds: string[]) => void
   onAddSavings: (draft: SavingsDraft) => void
-  onRemoveSavingsEvent: (id: string) => void
   onAssignSavings: (eventIds: string[], goalId: string) => void
   onSaveGenre: (draft: LabelDraft) => string
+  onWithdrawSavings: (goalId: string, amount: number, label?: string) => void
 }
 
 export default function SavingsPage({
   tasks, savingsEvents, genres, goalRows, savingsEarned, savingsWithdrawn, totalBalance,
   onSaveTask, onRemoveTask, onApplyTaskEdit,
   onCompleteTask, onUncompleteTask, onSaveGoal, onRemoveGoals, onApplyGoalEdit,
-  onAddSavings, onRemoveSavingsEvent, onAssignSavings, onSaveGenre,
+  onAddSavings, onAssignSavings, onSaveGenre, onWithdrawSavings,
 }: Props) {
   const savingsKept = savingsEarned - savingsWithdrawn
   const theme = themeOf('savings')
   const [goalDraft, setGoalDraft] = useState<GoalDraft | null>(null)
+  const [pickIcon, setPickIcon] = useState(false)
+  const [pickColor, setPickColor] = useState(false)
   const [deleteGoal, setDeleteGoal] = useState<GoalRow | null>(null)
   const [savingsDraft, setSavingsDraft] = useState<SavingsDraft | null>(null)
   const [savingsError, setSavingsError] = useState('')
-  const [deleteEvent, setDeleteEvent] = useState<SavingsEvent | null>(null)
-  const [blockedEvent, setBlockedEvent] = useState<SavingsEvent | null>(null)
+  const [withdrawDraft, setWithdrawDraft] = useState<WithdrawDraft | null>(null)
+  const [withdrawError, setWithdrawError] = useState('')
+  const [showAllHistory, setShowAllHistory] = useState(false)          // 履歴の全件表示
   const [breakdown, setBreakdown] = useState(false)                    // つもり貯金額の内訳
   const [sorting, setSorting] = useState(false)                        // 振り分けシート
   const [sortPick, setSortPick] = useState<Set<string>>(new Set())
@@ -304,12 +314,12 @@ export default function SavingsPage({
     e => e.date,
   )
 
-  /** 目標ごとの直近の記録。パネルの中に出して、その場で取り消せるようにする */
-  function recentOf(goalId: string) {
+  /** 目標の全履歴（貯める・取り崩す）を新しい順に */
+  function historyOf(goalId: string) {
     return byNewest(
-      savingsEvents.filter(e => e.goalId === goalId && e.amount > 0),
+      savingsEvents.filter(e => e.goalId === goalId),
       e => e.date,
-    ).slice(0, 3)
+    )
   }
 
   /** 目標の詳細から開く。行き先はその目標に固定（選び直しはできない） */
@@ -327,11 +337,20 @@ export default function SavingsPage({
     setSavingsError('')
   }
 
-  /** 消すと切り崩し済みの額を下回ってしまう記録は、残高がマイナスになるので消させない */
-  function requestDeleteEvent(e: SavingsEvent) {
-    const row = goalRows.find(g => g.id === e.goalId)
-    if (row && row.earned - e.amount < row.withdrawn) setBlockedEvent(e)
-    else setDeleteEvent(e)
+  /** 目標の詳細から開く。戻す手段はないので、金額は現在の貯金額までに制限する */
+  function openWithdraw(goalId: string) {
+    setWithdrawError('')
+    setWithdrawDraft({ goalId, amount: 0, label: '' })
+  }
+
+  function submitWithdraw() {
+    if (!withdrawDraft) return
+    const row = goalRows.find(g => g.id === withdrawDraft.goalId)
+    const error = firstError(withinAmount(withdrawDraft.amount, row?.kept ?? 0))
+    if (error) { setWithdrawError(error); return }
+    onWithdrawSavings(withdrawDraft.goalId, withdrawDraft.amount, withdrawDraft.label)
+    setWithdrawDraft(null)
+    setWithdrawError('')
   }
 
   function openSorting() {
@@ -356,9 +375,9 @@ export default function SavingsPage({
   function submitSorting() {
     if (sortPick.size === 0) { setSortError('振り分ける記録を選んでください'); return }
     if (!sortGoalId) { setSortError('行き先を選んでください'); return }
-    // 未定の分から切り崩し済みがあると、移しすぎたときに残高がマイナスになる
+    // 未定の分から取り崩し済みがあると、移しすぎたときに残高がマイナスになる
     if (inbox && pickedTotal > inbox.kept) {
-      setSortError(`未定から切り崩した分があるため、${yen(inbox.kept)} までしか振り分けられません`)
+      setSortError(`未定から取り崩した分があるため、${yen(inbox.kept)} までしか振り分けられません`)
       return
     }
     onAssignSavings([...sortPick], sortGoalId)
@@ -439,6 +458,12 @@ export default function SavingsPage({
   const draftTask = draft?.id ? tasks.find(t => t.id === draft.id) : undefined
   const draftLocked = !!draftTask && draftTask.repeat === 'once' && isDone(draftTask)
 
+  // 目標詳細シートの表示用データ。新規作成中（goalDraft.id === null）は該当なし
+  const goalRow = goalDraft?.id ? goalRows.find(g => g.id === goalDraft.id) : undefined
+  const goalHistory = goalRow ? historyOf(goalRow.id) : []
+  const visibleGoalHistory = showAllHistory ? goalHistory : goalHistory.slice(0, 5)
+  const goalRemaining = goalRow && goalRow.targetAmount > 0 ? Math.max(0, goalRow.targetAmount - goalRow.kept) : 0
+
   return (
     <div className="page">
       {timer && timerTask && (
@@ -510,7 +535,7 @@ export default function SavingsPage({
               {breakdown && (
                 <div className="hero-breakdown">
                   <div className="hero-calc"><span>貯めた額（累計）</span><span>¥{savingsEarned.toLocaleString()}</span></div>
-                  <div className="hero-calc"><span>− 切り崩した額</span><span>¥{savingsWithdrawn.toLocaleString()}</span></div>
+                  <div className="hero-calc"><span>− 取り崩した額</span><span>¥{savingsWithdrawn.toLocaleString()}</span></div>
                   <div className="hero-rule" />
                   <div className="hero-calc hero-calc-total">
                     <span>= 現在のつもり貯金額</span>
@@ -586,6 +611,7 @@ export default function SavingsPage({
                       className="row-card"
                       onClick={() => {
                         setGoalError('')
+                        setShowAllHistory(false)
                         setGoalDraft({ id: g.id, name: g.name, icon: g.icon, color: g.color, targetAmount: g.targetAmount })
                       }}
                     >
@@ -616,7 +642,7 @@ export default function SavingsPage({
 
             <p className="summary" style={{ textAlign: 'center', padding: '1rem 0' }}>
               目標を作るときは＋ボタンから。目標をタップすると詳細から貯金を追加でき、直近の記録も見られます。
-              切り崩しは「予定 &gt; 計算」タブ、記録の全体は「分析 &gt; 貯金履歴」から見られます
+              取り崩しは「予定 &gt; 計算」タブ、記録の全体は「分析 &gt; 貯金履歴」から見られます
             </p>
           </>
         )}
@@ -746,10 +772,13 @@ export default function SavingsPage({
         <DetailModal
           icon={goalDraft.icon || '🐷'}
           color={`${goalDraft.color}55`}
+          accent={readableColor(goalDraft.color)}
           name={goalDraft.name}
           onNameChange={v => setGoalDraft({ ...goalDraft, name: v })}
           namePlaceholder="例: 一人暮らし初期費用"
-          onClose={() => { setGoalDraft(null); setGoalError('') }}
+          onClose={() => { setGoalDraft(null); setGoalError(''); setPickIcon(false); setPickColor(false); setShowAllHistory(false) }}
+          onEditIcon={() => setPickIcon(true)}
+          onEditColor={() => setPickColor(true)}
           error={goalError}
           onSave={() => {
             const error = firstError(
@@ -764,93 +793,134 @@ export default function SavingsPage({
             return true
           }}
           startInEdit={goalDraft.id === null}
-          onDelete={goalDraft.id
-            ? () => {
-              const row = goalRows.find(g => g.id === goalDraft.id)
-              if (row) setDeleteGoal(row)
-            }
-            : undefined}
         >
-          {goalDraft.id && (() => {
-            const row = goalRows.find(g => g.id === goalDraft.id)
-            if (!row) return null
-            return (
-              <>
+          {goalRow && (
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              {goalRow.kept > 0 && (
                 <button
-                  style={{ width: '100%', marginBottom: '0.75rem', background: theme.accent }}
-                  onClick={() => openAddSavings(row.id)}
+                  className="btn-sub"
+                  style={{ flex: 1, border: '1px solid var(--accent)', color: 'var(--accent)' }}
+                  onClick={() => openWithdraw(goalRow.id)}
                 >
-                  ＋ 貯金を追加
+                  － 取り崩す
                 </button>
-                <DetailRow icon={<PiPiggyBank />} label="現在の貯金額" value={<ReadValue>{yen(row.kept)}</ReadValue>}>
-                  <span className="detail-value">{yen(row.kept)}</span>
-                </DetailRow>
-                {row.withdrawn > 0 && (
-                  <DetailRow icon={<PiScissors />} label="切り崩し済み" value={<ReadValue>{yen(row.withdrawn)}</ReadValue>}>
-                    <span className="detail-value">{yen(row.withdrawn)}</span>
-                  </DetailRow>
-                )}
-                {recentOf(row.id).length > 0 && (
-                  <DetailBlock icon={<PiClockCounterClockwise />} label="直近の記録">
-                    <div className="inline-recent">
-                      {recentOf(row.id).map(e => (
-                        <div className="inline-recent-row" key={e.id}>
-                          <span className="inline-recent-name">{e.label}</span>
-                          <span className="inline-recent-date">{e.date}</span>
-                          <span className="inline-recent-amount">+{e.amount.toLocaleString()}円</span>
-                          {e.taskId === '' ? (
-                            <button className="link-btn" onClick={() => requestDeleteEvent(e)}>
-                              取り消す
-                            </button>
-                          ) : (
-                            <span className="inline-recent-lock" title="タスクの達成を取り消すと戻ります">タスク</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </DetailBlock>
-                )}
-              </>
-            )
-          })()}
-
-          <DetailRow
-            icon={<PiTarget />}
-            label="目標額"
-            value={
-              <ReadValue muted={goalDraft.targetAmount === 0}>
-                {goalDraft.targetAmount > 0 ? yen(goalDraft.targetAmount) : '上限なし'}
-              </ReadValue>
-            }
-          >
-            <input
-              type="number"
-              value={goalDraft.targetAmount || ''}
-              onChange={e => setGoalDraft({ ...goalDraft, targetAmount: Number(e.target.value) })}
-              placeholder="未入力なら上限なし"
-              min={0}
-            />
-          </DetailRow>
-
-          <DetailBlock
-            icon={<PiPalette />}
-            label="見た目"
-            value={
-              <span className="genre-dot" style={{ background: `${goalDraft.color}33`, width: 40, height: 40, fontSize: 20 }}>
-                {goalDraft.icon || '🐷'}
-              </span>
-            }
-          >
-            <IconSwatches
-              value={goalDraft.icon}
-              onChange={icon => setGoalDraft({ ...goalDraft, icon })}
-              accent={theme.accent}
-            />
-            <div style={{ marginTop: '0.75rem' }}>
-              <ColorSwatches value={goalDraft.color} onChange={color => setGoalDraft({ ...goalDraft, color })} />
+              )}
+              <button style={{ flex: 1, background: theme.accent }} onClick={() => openAddSavings(goalRow.id)}>
+                ＋ 貯金を追加
+              </button>
             </div>
-          </DetailBlock>
+          )}
+
+          <div className="stat-card">
+            {goalRow && (
+              <DetailRow icon={<PiPiggyBank />} label="現在の貯金額" value={<ReadValue>{yen(goalRow.kept)}</ReadValue>}>
+                <span className="detail-value">{yen(goalRow.kept)}</span>
+              </DetailRow>
+            )}
+
+            <DetailRow
+              icon={<PiTarget />}
+              label="目標額"
+              value={
+                <ReadValue muted={goalDraft.targetAmount === 0}>
+                  {goalDraft.targetAmount > 0 ? yen(goalDraft.targetAmount) : '上限なし'}
+                </ReadValue>
+              }
+            >
+              <input
+                type="number"
+                value={goalDraft.targetAmount || ''}
+                onChange={e => setGoalDraft({ ...goalDraft, targetAmount: Number(e.target.value) })}
+                placeholder="未入力なら上限なし"
+                min={0}
+              />
+            </DetailRow>
+
+            {goalRow && goalRow.targetAmount > 0 && (
+              <DetailRow icon={<PiFlagCheckered />} label="残り" value={<ReadValue>{yen(goalRemaining)}</ReadValue>}>
+                <span className="detail-value">{yen(goalRemaining)}</span>
+              </DetailRow>
+            )}
+          </div>
+
+          {goalRow && goalHistory.length > 0 && (
+            <div className="dashed-card">
+              <DetailBlock
+                icon={<PiClockCounterClockwise />}
+                label="履歴"
+                headerAction={goalHistory.length > 5 && (
+                  <button
+                    className="link-btn"
+                    style={{
+                      marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text)',
+                      display: 'inline-flex', alignItems: 'center', gap: '0.15rem',
+                    }}
+                    onClick={() => setShowAllHistory(v => !v)}
+                  >
+                    {showAllHistory ? <>表示を減らす <PiCaretDown /></> : 'すべての履歴を見る >'}
+                  </button>
+                )}
+              >
+                <div className="inline-recent">
+                  {visibleGoalHistory.map(e => {
+                    const isWithdraw = e.amount < 0
+                    return (
+                      <div className="inline-recent-row" key={e.id}>
+                        <span className="inline-recent-name">{e.label}</span>
+                        <span className="inline-recent-date">{fullDateLabel(e.date)}</span>
+                        <span className={`inline-recent-amount${isWithdraw ? ' negative' : ''}`}>
+                          {isWithdraw ? '-' : '+'}{Math.abs(e.amount).toLocaleString()}円
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </DetailBlock>
+            </div>
+          )}
+
+          {goalRow && (
+            <button
+              className="btn-danger"
+              style={{ display: 'block', margin: '0.75rem auto 0', padding: '0.55rem 1.75rem' }}
+              onClick={() => setDeleteGoal(goalRow)}
+            >
+              目標を削除
+            </button>
+          )}
         </DetailModal>
+      )}
+
+      {pickIcon && goalDraft && (
+        <Sheet onClose={() => setPickIcon(false)} sheetClassName="modal">
+          {requestClose => (
+            <>
+              <div className="modal-title">アイコンを選ぶ</div>
+              <IconSwatches
+                value={goalDraft.icon}
+                onChange={icon => setGoalDraft({ ...goalDraft, icon })}
+                accent={theme.accent}
+              />
+              <div className="form-actions">
+                <button className="btn-sub" onClick={requestClose}>閉じる</button>
+              </div>
+            </>
+          )}
+        </Sheet>
+      )}
+
+      {pickColor && goalDraft && (
+        <Sheet onClose={() => setPickColor(false)} sheetClassName="modal">
+          {requestClose => (
+            <>
+              <div className="modal-title">背景の色を選ぶ</div>
+              <ColorSwatches value={goalDraft.color} onChange={color => setGoalDraft({ ...goalDraft, color })} />
+              <div className="form-actions">
+                <button className="btn-sub" onClick={requestClose}>閉じる</button>
+              </div>
+            </>
+          )}
+        </Sheet>
       )}
 
       {savingsDraft && (
@@ -909,6 +979,58 @@ export default function SavingsPage({
           )}
         </Sheet>
       )}
+
+      {withdrawDraft && (() => {
+        const row = goalRows.find(g => g.id === withdrawDraft.goalId)
+        const max = row?.kept ?? 0
+        return (
+          <Sheet onClose={() => { setWithdrawDraft(null); setWithdrawError('') }} sheetClassName="modal">
+            {requestClose => (
+              <>
+                <div className="modal-title">取り崩す</div>
+
+                {withdrawError && <p className="form-error" role="alert">{withdrawError}</p>}
+
+                <p className="summary" style={{ lineHeight: 1.7 }}>
+                  現在の貯金額 {yen(max)} まで取り崩せます。一度確定すると取り消せません。
+                </p>
+
+                <div className="form-row">
+                  <label htmlFor="wd-amount">金額</label>
+                  <input
+                    id="wd-amount"
+                    type="number"
+                    inputMode="numeric"
+                    value={withdrawDraft.amount || ''}
+                    onChange={e => setWithdrawDraft({ ...withdrawDraft, amount: Number(e.target.value) })}
+                    placeholder="0"
+                    min={0}
+                    max={max}
+                  />
+                </div>
+
+                <div className="form-row">
+                  <label htmlFor="wd-label">件名</label>
+                  <input
+                    id="wd-label"
+                    type="text"
+                    value={withdrawDraft.label}
+                    onChange={e => setWithdrawDraft({ ...withdrawDraft, label: e.target.value })}
+                    placeholder="取り崩し"
+                  />
+                </div>
+
+                <div className="form-actions">
+                  <button className="btn-sub" onClick={requestClose}>
+                    キャンセル
+                  </button>
+                  <button style={{ background: theme.accent }} onClick={submitWithdraw}>取り崩す</button>
+                </div>
+              </>
+            )}
+          </Sheet>
+        )
+      })()}
 
       {sorting && (
         <Sheet onClose={() => setSorting(false)} sheetClassName="modal">
@@ -980,31 +1102,6 @@ export default function SavingsPage({
                   </div>
                 </>
               )}
-            </>
-          )}
-        </Sheet>
-      )}
-
-      {deleteEvent && (
-        <ConfirmModal
-          message={`「${deleteEvent.label}」で貯めた ${yen(deleteEvent.amount)} の記録を消します。よろしいですか？`}
-          onCancel={() => setDeleteEvent(null)}
-          onConfirm={() => { onRemoveSavingsEvent(deleteEvent.id); setDeleteEvent(null) }}
-        />
-      )}
-
-      {blockedEvent && (
-        <Sheet onClose={() => setBlockedEvent(null)} sheetClassName="modal">
-          {requestClose => (
-            <>
-              <div className="modal-title">取り消せません</div>
-              <p style={{ fontSize: '0.9rem', color: 'var(--text-h)', lineHeight: 1.7, marginBottom: '1.25rem' }}>
-                この {yen(blockedEvent.amount)} を消すと、すでに切り崩した額を下回ってしまいます。
-                先に「予定 &gt; 計算」タブで切り崩しを戻してください。
-              </p>
-              <div className="form-actions">
-                <button className="btn-sub" onClick={requestClose}>閉じる</button>
-              </div>
             </>
           )}
         </Sheet>

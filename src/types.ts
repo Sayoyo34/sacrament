@@ -95,7 +95,7 @@ export interface Goal {
 
 /**
  * つもり貯金の発生ログ。分析>貯金履歴の月別棒グラフはこれを集計する。
- * amount が負なら切り崩し。
+ * amount が負なら取り崩し。
  */
 export interface SavingsEvent {
   id: string;

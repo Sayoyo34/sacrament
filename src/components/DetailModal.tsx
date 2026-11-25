@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
-import { PiTrash, PiX } from 'react-icons/pi'
+import { PiPaintBucket, PiPencilSimple, PiTrash, PiX } from 'react-icons/pi'
 import Sheet from './Sheet'
 
 type Mode = 'view' | 'edit'
@@ -26,6 +26,12 @@ interface Props {
   onDelete?: () => void
   /** 入力に不備がある時の説明。保存を押しても何も起きない状態を避ける */
   error?: string
+  /** 編集/保存ボタンの色。省略するとアプリ共通のテーマ色になる（貯金目標など、項目ごとに色を持つ画面向け） */
+  accent?: string
+  /** 編集中のみ有効。渡すとアイコンの右下に鉛筆バッジが出て、押すとこれが呼ばれる */
+  onEditIcon?: () => void
+  /** 編集中のみ有効。渡すとゴミ箱の横にペンキアイコンのボタンが出て、押すとこれが呼ばれる */
+  onEditColor?: () => void
   children: ReactNode
 }
 
@@ -35,7 +41,7 @@ interface Props {
  */
 export default function DetailModal({
   icon, color, name, startInEdit, onNameChange, namePlaceholder, nameMaxLength,
-  onClose, onSave, onDelete, error, children,
+  onClose, onSave, onDelete, error, onEditIcon, onEditColor, accent, children,
 }: Props) {
   const [mode, setMode] = useState<Mode>(startInEdit ? 'edit' : 'view')
   const editing = mode === 'edit'
@@ -55,6 +61,9 @@ export default function DetailModal({
             <div className="detail-head-bar">
               <button className="icon-btn" onClick={requestClose} aria-label="閉じる"><PiX /></button>
               <div className="detail-head-actions">
+                {editing && onEditColor && (
+                  <button className="icon-btn" onClick={onEditColor} aria-label="背景の色を変える"><PiPaintBucket /></button>
+                )}
                 {onDelete && (
                   <button className="icon-btn" onClick={onDelete} aria-label="削除"><PiTrash /></button>
                 )}
@@ -63,20 +72,36 @@ export default function DetailModal({
                     ? (
                       <button
                         className="detail-save"
+                        style={accent ? { background: accent } : undefined}
                         onClick={() => { if (onSave() === true) setMode('view') }}
                       >
                         保存
                       </button>
                     )
-                    : <button className="detail-save" onClick={() => setMode('edit')}>編集</button>
+                    : (
+                      <button
+                        className="detail-save"
+                        style={accent ? { background: accent } : undefined}
+                        onClick={() => setMode('edit')}
+                      >
+                        編集
+                      </button>
+                    )
                 )}
               </div>
             </div>
             <div className="detail-title-row">
-              <span className="detail-icon">{icon}</span>
+              <span className="detail-icon-wrap">
+                <span className="detail-icon">{icon}</span>
+                {editing && onEditIcon && (
+                  <button className="detail-icon-edit" onClick={onEditIcon} aria-label="アイコンを変える">
+                    <PiPencilSimple />
+                  </button>
+                )}
+              </span>
               {editing && onNameChange ? (
                 <input
-                  className="detail-name"
+                  className="detail-name detail-name-edit"
                   value={name}
                   onChange={e => onNameChange(e.target.value)}
                   placeholder={namePlaceholder ?? '名前'}
@@ -122,11 +147,13 @@ export function DetailRow({ icon, label, value, children }: {
 }
 
 /** ラベルを上に置き、下に自由な高さの中身を敷く行（メモ・タグなど） */
-export function DetailBlock({ icon, label, value, children }: {
+export function DetailBlock({ icon, label, value, children, headerAction }: {
   icon: ReactNode
   label: string
   value?: ReactNode
   children?: ReactNode
+  /** ラベルの右側に置く操作（履歴の「すべて見る」切り替えなど） */
+  headerAction?: ReactNode
 }) {
   const mode = useContext(DetailMode)
   if (mode === 'view' && value === null) return null
@@ -136,6 +163,7 @@ export function DetailBlock({ icon, label, value, children }: {
       <div className="detail-row" style={{ borderBottom: 'none', paddingBottom: 0 }}>
         <span className="detail-row-icon">{icon}</span>
         <span className="detail-row-label">{label}</span>
+        {headerAction}
       </div>
       <div className="detail-block-body">{body}</div>
     </div>

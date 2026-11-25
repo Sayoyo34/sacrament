@@ -39,7 +39,7 @@ export function notDuplicated(name: string, existing: string[], label: string): 
   return () => existing.some(n => n === name.trim()) ? `同じ名前の${label}がすでにあります` : null
 }
 
-/** 引く／切り崩す／戻す の金額 */
+/** 引く／取り崩す／戻す の金額 */
 export function withinAmount(value: number, max: number): Check {
   return () => {
     if (value <= 0) return '金額を入力してください'

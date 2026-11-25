@@ -29,6 +29,12 @@ export function monthLabel(month: string) {
   return `${y}年${Number(m)}月`
 }
 
+/** YYYY-MM-DD → 2026年11月19日（先頭の0は落とす） */
+export function fullDateLabel(date: string) {
+  const [y, m, d] = date.split('-')
+  return `${y}年${Number(m)}月${Number(d)}日`
+}
+
 /** YYYY-MM-DD または YYYY-MM → YYYY */
 export function yearOf(date: string) {
   return date.slice(0, 4)
