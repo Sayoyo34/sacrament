@@ -1,7 +1,10 @@
 export interface Wallet {
   id: string;
   name: string;       // "現金", "PayPay", "クレカ" など
-  balance: number;    // 現在残高
+  balance: number;    // 現在残高。isCredit が true の間はマイナス＝未精算の請求額として扱う
+  isCredit: boolean;      // true = クレカなどの後払い口座
+  billingDay: number;     // 引き落とし日 1-31, 0 = 未設定。isCredit のみ使う
+  payFromWalletId: string; // 引き落とし元の口座。isCredit のみ使う。'' = 未設定
 }
 
 /** 項目の分類。1項目に1つだけ付き、色を持つ。分析の円グラフはこの軸で集計する */
@@ -28,17 +31,18 @@ export interface LedgerEntry {
   genreId: string;    // '' = 未設定
   tagIds: string[];
   memo: string;
+  transfer: boolean;  // true = 口座間の振替（クレカの引き落としなど）。収支・ジャンル分析からは除く
 }
 
-/** 'subscription' = サブスクなど固定額の定期支出, 'credit' = クレカの後払い（確定額は請求ごとに更新） */
-export type PlanCategory = 'subscription' | 'credit';
+/** 固定額の定期支出。クレジットカードは口座（Wallet）側の isCredit で扱う */
+export type PlanCategory = 'subscription';
 
 /** 確定している定期の出費だけを置く。買うか未定のものは貯金目標（Goal）側で扱う */
 export interface PlanItem {
   id: string;
   name: string;
   category: PlanCategory;
-  estimatedCost: number;    // credit は確定した請求額。確定前は 0 のままでよい
+  estimatedCost: number;
   dayOfMonth: number;       // 引き落とし日 1-31, 0 = 未設定
   walletId: string;         // 引き落とし口座, '' = 未設定
   genreId: string;

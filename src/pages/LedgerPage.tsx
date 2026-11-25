@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import {
   PiArrowsClockwise, PiCalendarBlank, PiCoins, PiCreditCard,
-  PiLightbulb, PiNotePencil, PiReceipt, PiSquaresFour, PiTag,
+  PiLightbulb, PiNotePencil, PiReceipt, PiSquaresFour, PiTag, PiWallet,
 } from 'react-icons/pi'
 import type { Genre, LedgerEntry, Tag, Wallet } from '../types'
 import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
+import Sheet from '../components/Sheet'
 import { GenreDot, GenreSelect, TagFilter, TagList, TagPicker } from '../components/Pickers'
 import type { LabelDraft } from '../components/LabelListPage'
 import EditableList, { EditToolbar, ReorderButton } from '../components/EditableList'
@@ -34,6 +35,9 @@ interface WalletDraft {
   id: string | null
   name: string
   balance: number
+  isCredit: boolean
+  billingDay: number
+  payFromWalletId: string
 }
 
 interface Props {
@@ -46,6 +50,7 @@ interface Props {
   onRemoveEntry: (id: string) => void
   onSaveWallet: (draft: WalletDraft) => void
   onRemoveWallet: (id: string) => void
+  onSettleCredit: (walletId: string, actualAmount: number) => void
   onSaveGenre: (draft: LabelDraft) => string
   onSaveTag: (draft: LabelDraft) => string
   onApplyWalletEdit: (orderedIds: string[], removedIds: string[]) => void
@@ -59,7 +64,7 @@ function shiftMonth(month: string, delta: number) {
 
 export default function LedgerPage({
   wallets, entries, genres, tags, totalBalance,
-  onSaveEntry, onRemoveEntry, onSaveWallet, onRemoveWallet, onSaveGenre, onSaveTag,
+  onSaveEntry, onRemoveEntry, onSaveWallet, onRemoveWallet, onSettleCredit, onSaveGenre, onSaveTag,
   onApplyWalletEdit,
 }: Props) {
   const theme = themeOf('ledger')
@@ -71,6 +76,8 @@ export default function LedgerPage({
   const [filterTags, setFilterTags] = useState<string[]>([])
   const [entryError, setEntryError] = useState('')
   const [walletError, setWalletError] = useState('')
+  const [settleTarget, setSettleTarget] = useState<{ walletId: string; name: string; faceTotal: number } | null>(null)
+  const [settleAmount, setSettleAmount] = useState(0)
 
   // 口座の並び替え（確定するまで下書きだけを書き換える）
   const walletSession = useEditSession<Wallet>()
@@ -96,7 +103,7 @@ export default function LedgerPage({
   )
 
   const monthExpense = monthEntries
-    .filter(e => e.amount < 0)
+    .filter(e => e.amount < 0 && !e.transfer)
     .reduce((s, e) => s + Math.abs(e.amount), 0)
 
   const filterNames = filterTags
@@ -153,7 +160,7 @@ export default function LedgerPage({
 
   function openNewWallet() {
     setWalletError('')
-    setWalletDraft({ id: null, name: '', balance: 0 })
+    setWalletDraft({ id: null, name: '', balance: 0, isCredit: false, billingDay: 0, payFromWalletId: '' })
   }
 
   function saveWallet() {
@@ -167,16 +174,33 @@ export default function LedgerPage({
     return true
   }
 
+  function openSettle(w: Wallet) {
+    const faceTotal = Math.max(0, -w.balance)
+    setSettleTarget({ walletId: w.id, name: w.name, faceTotal })
+    setSettleAmount(faceTotal)
+  }
+
+  function confirmSettle() {
+    if (!settleTarget) return
+    onSettleCredit(settleTarget.walletId, Math.max(0, settleAmount))
+    setSettleTarget(null)
+    setWalletDraft(null)
+  }
+
   /** 口座1行の中身。並び替え中の行でもそのまま使う */
   function walletBody(w: Wallet) {
+    const owed = w.isCredit && w.balance < 0 ? -w.balance : 0
     return (
       <>
         <GenreDot genres={genres} genreId="" fallback={<PiCreditCard />} />
         <span className="row-main">
           <span className="row-title">{w.name}</span>
+          {w.isCredit && (
+            <span className="row-sub">{w.billingDay > 0 ? `毎月${w.billingDay}日引き落とし` : '引き落とし日未設定'}</span>
+          )}
         </span>
         <span className={`row-amount${w.balance < 0 ? ' remaining-negative' : ''}`}>
-          {w.balance.toLocaleString()}円
+          {owed > 0 ? `未精算 ${owed.toLocaleString()}円` : `${w.balance.toLocaleString()}円`}
         </span>
       </>
     )
@@ -232,6 +256,7 @@ export default function LedgerPage({
                           <span className="row-title">{e.label}</span>
                           <span className="row-sub">
                             {e.date}
+                            {e.transfer && <span className="row-chip">振替</span>}
                             <TagList tags={tags} ids={e.tagIds} />
                           </span>
                         </span>
@@ -287,7 +312,16 @@ export default function LedgerPage({
               <ul className="item-list">
                 {wallets.map(w => (
                   <li key={w.id}>
-                    <button className="row-card" onClick={() => setWalletDraft({ id: w.id, name: w.name, balance: w.balance })}>
+                    <button
+                      className="row-card"
+                      onClick={() => {
+                        setWalletError('')
+                        setWalletDraft({
+                          id: w.id, name: w.name, balance: w.balance,
+                          isCredit: w.isCredit, billingDay: w.billingDay, payFromWalletId: w.payFromWalletId,
+                        })
+                      }}
+                    >
                       {walletBody(w)}
                     </button>
                   </li>
@@ -417,14 +451,35 @@ export default function LedgerPage({
           color={theme.soft}
           name={walletDraft.name}
           onNameChange={v => setWalletDraft({ ...walletDraft, name: v })}
-          namePlaceholder="例: PayPay"
+          namePlaceholder={walletDraft.isCredit ? '例: 楽天カード' : '例: PayPay'}
           onClose={() => { setWalletDraft(null); setWalletError('') }}
           onSave={saveWallet}
           startInEdit={walletDraft.id === null}
           error={walletError}
           onDelete={walletDraft.id ? () => setDeleteTarget({ kind: 'wallet', id: walletDraft.id!, name: walletDraft.name }) : undefined}
         >
-          <DetailRow icon={<PiCoins />} label="残高" value={<ReadValue>{yen(walletDraft.balance)}</ReadValue>}>
+          <DetailRow
+            icon={<PiArrowsClockwise />}
+            label="種類"
+            value={<ReadValue>{walletDraft.isCredit ? 'クレジットカード' : 'ふつうの口座'}</ReadValue>}
+          >
+            <div className="type-toggle">
+              <button
+                className={walletDraft.isCredit ? 'btn-sub' : ''}
+                onClick={() => setWalletDraft({ ...walletDraft, isCredit: false })}
+              >ふつうの口座</button>
+              <button
+                className={!walletDraft.isCredit ? 'btn-sub' : ''}
+                onClick={() => setWalletDraft({ ...walletDraft, isCredit: true })}
+              >クレジットカード</button>
+            </div>
+          </DetailRow>
+
+          <DetailRow
+            icon={<PiCoins />}
+            label={walletDraft.isCredit ? '未精算の残高' : '残高'}
+            value={<ReadValue>{yen(walletDraft.balance)}</ReadValue>}
+          >
             <input
               type="number"
               value={walletDraft.balance || ''}
@@ -435,7 +490,95 @@ export default function LedgerPage({
           <DetailRow icon={<PiLightbulb />} label="" value={null}>
             <span className="summary">取引を記録すると自動で増減します</span>
           </DetailRow>
+
+          {walletDraft.isCredit && (
+            <>
+              <DetailRow
+                icon={<PiCalendarBlank />}
+                label="引き落とし日"
+                value={
+                  <ReadValue muted={walletDraft.billingDay === 0}>
+                    {walletDraft.billingDay > 0 ? `毎月${walletDraft.billingDay}日` : '未設定'}
+                  </ReadValue>
+                }
+              >
+                <input
+                  type="number"
+                  value={walletDraft.billingDay || ''}
+                  onChange={e => setWalletDraft({ ...walletDraft, billingDay: Number(e.target.value) })}
+                  placeholder="毎月◯日（任意）"
+                  min={1}
+                  max={31}
+                />
+              </DetailRow>
+
+              <DetailRow
+                icon={<PiWallet />}
+                label="引き落とし元の口座"
+                value={
+                  <ReadValue muted={!walletDraft.payFromWalletId}>
+                    {wallets.find(w => w.id === walletDraft.payFromWalletId)?.name ?? '未設定'}
+                  </ReadValue>
+                }
+              >
+                <select
+                  value={walletDraft.payFromWalletId}
+                  onChange={e => setWalletDraft({ ...walletDraft, payFromWalletId: e.target.value })}
+                >
+                  <option value="">未設定</option>
+                  {wallets.filter(w => w.id !== walletDraft.id).map(w => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+              </DetailRow>
+
+              {walletDraft.balance < 0 && (() => {
+                const settleBody = walletDraft.payFromWalletId ? (
+                  <button className="btn-sub" style={{ width: '100%' }} onClick={() => openSettle(wallets.find(w => w.id === walletDraft.id)!)}>
+                    未精算 {yen(-walletDraft.balance)} を清算する
+                  </button>
+                ) : (
+                  <p className="summary">清算するには、先に「引き落とし元の口座」を設定してください</p>
+                )
+                return (
+                  <DetailRow icon={<PiReceipt />} label="清算" value={settleBody}>
+                    {settleBody}
+                  </DetailRow>
+                )
+              })()}
+            </>
+          )}
         </DetailModal>
+      )}
+
+      {settleTarget && (
+        <Sheet onClose={() => setSettleTarget(null)} sheetClassName="modal">
+          {requestClose => (
+            <>
+              <div className="modal-title">清算 - {settleTarget.name}</div>
+              <p className="summary" style={{ marginBottom: '0.75rem' }}>
+                未精算の合計 {yen(settleTarget.faceTotal)}
+              </p>
+              <div className="form-row">
+                <label>実際に引き落とされた額</label>
+                <input
+                  type="number"
+                  value={settleAmount || ''}
+                  onChange={e => setSettleAmount(Number(e.target.value))}
+                  placeholder="0"
+                  min={0}
+                />
+              </div>
+              <p className="summary" style={{ marginBottom: '0.75rem' }}>
+                割引・キャッシュバックが入るカードは、実際に引き落とされる金額に書き換えてください
+              </p>
+              <div className="form-actions">
+                <button className="btn-sub" onClick={requestClose}>キャンセル</button>
+                <button style={{ background: theme.accent }} onClick={confirmSettle}>清算する</button>
+              </div>
+            </>
+          )}
+        </Sheet>
       )}
 
       {deleteTarget && (

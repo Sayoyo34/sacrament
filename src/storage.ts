@@ -1,8 +1,8 @@
-import type { Genre, Goal, LedgerEntry, PlanItem, SavingsEvent, Tag, Task } from './types'
+import type { Genre, Goal, LedgerEntry, PlanItem, SavingsEvent, Tag, Task, Wallet } from './types'
 import { generateId, todayStr } from './utils'
 
 const SCHEMA_KEY = 'schemaVersion'
-const SCHEMA_VERSION = 4
+const SCHEMA_VERSION = 6
 
 export function load<T>(key: string, fallback: T): T {
   try {
@@ -56,6 +56,7 @@ export function migrate() {
   if (from < 2) migrateV1toV2()
   if (from < 3) migrateV2toV3()
   if (from < 4) migrateV3toV4()
+  if (from < 6) migrateToV6()
   save(SCHEMA_KEY, SCHEMA_VERSION)
 }
 
@@ -100,6 +101,46 @@ function migrateV3toV4() {
   save('savingsEvents', [...events, ...newEvents])
 }
 
+interface LegacyPlanItemV4 {
+  id: string; name: string; category: 'subscription' | 'credit'; estimatedCost: number
+  dayOfMonth: number; walletId: string; genreId: string; tagIds: string[]; memo: string; order: number
+}
+type LegacyWalletV4 = { id: string; name: string; balance: number }
+type LegacyEntryV4 = Omit<LedgerEntry, 'transfer'>
+
+/**
+ * → v6: クレカ後払いは「出費予定の手入力」をやめ、口座（isCredit）として扱う。
+ * 既存の credit プランは、未精算額をそのまま引き継いだクレカ口座に引っ越す。
+ * 口座・家計簿の既存データには isCredit / transfer 等の新フィールドを補う。
+ */
+function migrateToV6() {
+  const legacyWallets = load<LegacyWalletV4[]>('wallets', [])
+  const legacyEntries = load<LegacyEntryV4[]>('entries', [])
+  const legacyPlans = load<LegacyPlanItemV4[]>('planItems', [])
+  const today = todayStr()
+
+  const wallets: Wallet[] = legacyWallets.map(w => ({ ...w, isCredit: false, billingDay: 0, payFromWalletId: '' }))
+  const entries: LedgerEntry[] = legacyEntries.map(e => ({ ...e, transfer: false }))
+
+  legacyPlans.filter(p => p.category === 'credit').forEach(p => {
+    const walletId = generateId()
+    wallets.push({
+      id: walletId, name: p.name, balance: -p.estimatedCost,
+      isCredit: true, billingDay: p.dayOfMonth, payFromWalletId: p.walletId,
+    })
+    if (p.estimatedCost > 0) {
+      entries.push({
+        id: generateId(), walletId, label: `${p.name}（移行分）`, amount: -p.estimatedCost,
+        date: today, genreId: p.genreId, tagIds: p.tagIds, memo: p.memo, transfer: false,
+      })
+    }
+  })
+
+  save('wallets', wallets)
+  save('entries', entries)
+  save('planItems', legacyPlans.filter(p => p.category === 'subscription'))
+}
+
 /** v2 → v3: つもり貯金に「貯金目標」という行き先の概念を足す */
 function migrateV2toV3() {
   const events = load<SavingsEvent[]>('savingsEvents', [])
@@ -125,6 +166,7 @@ function migrateV1toV2() {
     genreId: '',
     tagIds: [],
     memo: '',
+    transfer: false,
   }))
 
   // ── 欲しいもの（未定）と定期支出（毎月）を予定に統合

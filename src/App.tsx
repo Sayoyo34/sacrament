@@ -202,7 +202,7 @@ export default function App() {
     if (d.id === null) {
       setEntries(prev => [...prev, {
         id: generateId(), walletId: d.walletId, label: d.label, amount: signed,
-        date: d.date, genreId: d.genreId, tagIds: d.tagIds, memo: d.memo,
+        date: d.date, genreId: d.genreId, tagIds: d.tagIds, memo: d.memo, transfer: false,
       }])
       setWallets(prev => prev.map(w => w.id === d.walletId ? { ...w, balance: w.balance + signed } : w))
       return
@@ -229,14 +229,22 @@ export default function App() {
 
   function saveWallet(d: WalletDraft) {
     if (d.id === null) {
-      setWallets(prev => [...prev, { id: generateId(), name: d.name, balance: d.balance }])
+      setWallets(prev => [...prev, {
+        id: generateId(), name: d.name, balance: d.balance,
+        isCredit: d.isCredit, billingDay: d.billingDay, payFromWalletId: d.payFromWalletId,
+      }])
       return
     }
-    setWallets(prev => prev.map(w => w.id === d.id ? { ...w, name: d.name, balance: d.balance } : w))
+    setWallets(prev => prev.map(w => w.id === d.id ? {
+      ...w, name: d.name, balance: d.balance,
+      isCredit: d.isCredit, billingDay: d.billingDay, payFromWalletId: d.payFromWalletId,
+    } : w))
   }
 
   function removeWallet(id: string) {
-    setWallets(prev => prev.filter(w => w.id !== id))
+    setWallets(prev => prev
+      .filter(w => w.id !== id)
+      .map(w => w.payFromWalletId === id ? { ...w, payFromWalletId: '' } : w))
     setEntries(prev => prev.filter(e => e.walletId !== id))
     setPlanItems(prev => prev.map(p => p.walletId === id ? { ...p, walletId: '' } : p))
   }
@@ -244,7 +252,9 @@ export default function App() {
   /** 口座は配列の並びがそのまま表示順（ジャンル・タグと同じ扱い） */
   function applyWalletEdit(orderedIds: string[], removedIds: string[]) {
     setWallets(prev => {
-      const kept = prev.filter(w => !removedIds.includes(w.id))
+      const kept = prev
+        .filter(w => !removedIds.includes(w.id))
+        .map(w => removedIds.includes(w.payFromWalletId) ? { ...w, payFromWalletId: '' } : w)
       const byId = new Map(kept.map(w => [w.id, w]))
       const ordered = orderedIds.map(id => byId.get(id)).filter((w): w is Wallet => !!w)
       // 並び順に載っていないものが万一あれば末尾に残す
@@ -257,7 +267,27 @@ export default function App() {
     }
   }
 
-  // ── 予定（サブスク・クレカ後払いの確定額のみ） ──
+  /** クレカの清算：未精算額ぶんを口座残高に足し戻して0にし、実際に引き落とされた額を引き落とし元の口座から引く */
+  function settleCredit(walletId: string, actualAmount: number) {
+    const w = wallets.find(x => x.id === walletId)
+    if (!w || !w.payFromWalletId) return
+    const faceAmount = Math.max(0, -w.balance)
+    if (faceAmount <= 0) return
+    const bankId = w.payFromWalletId
+    const today = todayStr()
+    const label = `${w.name} 引き落とし`
+    setEntries(prev => [...prev,
+      { id: generateId(), walletId: bankId, label, amount: -Math.abs(actualAmount), date: today, genreId: '', tagIds: [], memo: '', transfer: true },
+      { id: generateId(), walletId: w.id, label, amount: faceAmount, date: today, genreId: '', tagIds: [], memo: '', transfer: true },
+    ])
+    setWallets(prev => prev.map(x => {
+      if (x.id === bankId) return { ...x, balance: x.balance - Math.abs(actualAmount) }
+      if (x.id === w.id) return { ...x, balance: x.balance + faceAmount }
+      return x
+    }))
+  }
+
+  // ── 予定（定期支出） ──
   function savePlan(d: PlanDraft) {
     if (d.id === null) {
       const order = planItems.reduce((m, p) => Math.max(m, p.order), -1) + 1
@@ -563,6 +593,7 @@ export default function App() {
             onRemoveEntry={removeEntry}
             onSaveWallet={saveWallet}
             onRemoveWallet={removeWallet}
+            onSettleCredit={settleCredit}
             onSaveGenre={saveGenre}
             onSaveTag={saveTag}
             onApplyWalletEdit={applyWalletEdit}
