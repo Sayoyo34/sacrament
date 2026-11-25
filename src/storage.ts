@@ -94,6 +94,7 @@ function migrateV3toV4() {
 
   const planItems: PlanItem[] = legacyPlans.filter(p => p.kind === 'monthly').map(p => ({
     id: p.id, name: p.name, category: 'subscription' as const, estimatedCost: p.estimatedCost,
+    frequency: 'monthly' as const, month: 0,
     dayOfMonth: p.dayOfMonth, walletId: p.walletId, genreId: p.genreId, tagIds: p.tagIds, memo: p.memo, order: p.order,
   }))
 
