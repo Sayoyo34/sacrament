@@ -37,14 +37,19 @@ export interface LedgerEntry {
 /** 固定額の定期支出。クレジットカードは口座（Wallet）側の isCredit で扱う */
 export type PlanCategory = 'subscription';
 
+/** 'monthly' = 毎月払い, 'yearly' = 年一（ファンクラブの年会費など） */
+export type PlanFrequency = 'monthly' | 'yearly';
+
 /** 確定している定期の出費だけを置く。買うか未定のものは貯金目標（Goal）側で扱う */
 export interface PlanItem {
   id: string;
   name: string;
   category: PlanCategory;
   estimatedCost: number;
-  dayOfMonth: number;       // 引き落とし日 1-31, 0 = 未設定
-  walletId: string;         // 引き落とし口座, '' = 未設定
+  frequency: PlanFrequency;
+  month: number;            // 支払い月 1-12, 0 = 未設定。frequency が yearly のときだけ使う
+  dayOfMonth: number;       // 支払い日 1-31, 0 = 未設定
+  walletId: string;         // 支払い元の口座, '' = 未設定
   genreId: string;
   tagIds: string[];
   memo: string;

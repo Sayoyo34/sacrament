@@ -3,7 +3,7 @@ import {
   PiArrowsClockwise, PiCalendarBlank, PiCoins, PiCreditCard,
   PiNotePencil, PiNotepad, PiPiggyBank, PiSquaresFour, PiTag, PiWallet,
 } from 'react-icons/pi'
-import type { Genre, GoalRow, PlanCategory, PlanItem, Tag, Wallet } from '../types'
+import type { Genre, GoalRow, PlanCategory, PlanFrequency, PlanItem, Tag, Wallet } from '../types'
 import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
 import CalcSummary, { type CalcSegment } from '../components/CalcSummary'
@@ -26,11 +26,30 @@ interface PlanDraft {
   name: string
   category: PlanCategory
   estimatedCost: number
+  frequency: PlanFrequency
+  month: number
   dayOfMonth: number
   walletId: string
   genreId: string
   tagIds: string[]
   memo: string
+}
+
+/** 「毎月○日」「毎年○月○日」のような短い日付表示。どちらも未設定なら「未設定」 */
+function shortDateText(p: Pick<PlanItem, 'frequency' | 'month' | 'dayOfMonth'>) {
+  if (p.frequency === 'yearly') {
+    if (p.month > 0 && p.dayOfMonth > 0) return `毎年${p.month}月${p.dayOfMonth}日`
+    if (p.month > 0) return `毎年${p.month}月`
+    if (p.dayOfMonth > 0) return `毎年${p.dayOfMonth}日`
+    return '未設定'
+  }
+  return p.dayOfMonth > 0 ? `毎月${p.dayOfMonth}日` : '未設定'
+}
+
+/** 一覧行用。「毎月○日に支払い」「支払い日未設定」のような文言 */
+function paymentLabel(p: Pick<PlanItem, 'frequency' | 'month' | 'dayOfMonth'>) {
+  const text = shortDateText(p)
+  return text === '未設定' ? '支払い日未設定' : `${text}に支払い`
 }
 
 interface Props {
@@ -134,7 +153,8 @@ export default function PlansPage({
   function openNew() {
     setEditError('')
     setEditing({
-      id: null, name: '', category: 'subscription', estimatedCost: 0, dayOfMonth: 0,
+      id: null, name: '', category: 'subscription', estimatedCost: 0,
+      frequency: 'monthly', month: 0, dayOfMonth: 0,
       walletId: wallets[0]?.id ?? '', genreId: '', tagIds: [], memo: '',
     })
   }
@@ -143,7 +163,7 @@ export default function PlansPage({
     setEditError('')
     setEditing({
       id: p.id, name: p.name, category: p.category, estimatedCost: p.estimatedCost,
-      dayOfMonth: p.dayOfMonth, walletId: p.walletId, genreId: p.genreId,
+      frequency: p.frequency, month: p.month, dayOfMonth: p.dayOfMonth, walletId: p.walletId, genreId: p.genreId,
       tagIds: p.tagIds, memo: p.memo,
     })
   }
@@ -154,8 +174,9 @@ export default function PlansPage({
     const error = firstError(
       required(editing.name, '名前'),
       notNegative(editing.estimatedCost, '金額'),
-      // 支払い日は任意。入れるなら 1〜31
+      // 支払い日・支払い月はどちらも任意。入れるならそれぞれ 1〜31 / 1〜12
       () => editing.dayOfMonth !== 0 ? inRange(editing.dayOfMonth, 1, 31, '支払い日')() : null,
+      () => editing.frequency === 'yearly' && editing.month !== 0 ? inRange(editing.month, 1, 12, '支払い月')() : null,
     )
     if (error) { setEditError(error); return false }
     onSavePlan({ ...editing, name: editing.name.trim() })
@@ -174,7 +195,7 @@ export default function PlansPage({
         <span className="row-main">
           <span className="row-title">{p.name}</span>
           <span className="row-sub">
-            {p.dayOfMonth > 0 ? `毎月${p.dayOfMonth}日に支払い` : '支払い日未設定'}
+            {paymentLabel(p)}
             <TagList tags={tags} ids={p.tagIds} />
           </span>
         </span>
@@ -318,7 +339,7 @@ export default function PlansPage({
           <span className="row-main">
             <span className="row-title">{p.name}</span>
             <span className="row-sub">
-              {p.dayOfMonth > 0 ? `毎月${p.dayOfMonth}日に支払い` : '支払い日未設定'}
+              {paymentLabel(p)}
               ・{wallets.find(w => w.id === p.walletId)?.name ?? '口座未設定'}
             </span>
           </span>
@@ -452,19 +473,44 @@ export default function PlansPage({
           </DetailRow>
 
           <DetailRow
+            icon={<PiArrowsClockwise />}
+            label="頻度"
+            value={<ReadValue>{editing.frequency === 'yearly' ? '毎年' : '毎月'}</ReadValue>}
+          >
+            <div className="type-toggle">
+              <button
+                className={editing.frequency !== 'monthly' ? 'btn-sub' : ''}
+                onClick={() => setEditing({ ...editing, frequency: 'monthly', month: 0 })}
+              >毎月</button>
+              <button
+                className={editing.frequency !== 'yearly' ? 'btn-sub' : ''}
+                onClick={() => setEditing({ ...editing, frequency: 'yearly' })}
+              >毎年（ファンクラブの年会費など）</button>
+            </div>
+          </DetailRow>
+
+          <DetailRow
             icon={<PiCalendarBlank />}
             label="支払い日"
-            value={
-              <ReadValue muted={editing.dayOfMonth === 0}>
-                {editing.dayOfMonth > 0 ? `毎月${editing.dayOfMonth}日` : '未設定'}
-              </ReadValue>
-            }
+            value={<ReadValue muted={editing.dayOfMonth === 0 && editing.month === 0}>{shortDateText(editing)}</ReadValue>}
           >
+            {editing.frequency === 'yearly' && (
+              <select
+                value={editing.month}
+                onChange={e => setEditing({ ...editing, month: Number(e.target.value) })}
+                style={{ marginBottom: '0.5rem' }}
+              >
+                <option value={0}>月を選択（任意）</option>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                  <option key={m} value={m}>{m}月</option>
+                ))}
+              </select>
+            )}
             <input
               type="number"
               value={editing.dayOfMonth || ''}
               onChange={e => setEditing({ ...editing, dayOfMonth: Number(e.target.value) })}
-              placeholder="毎月◯日（任意）"
+              placeholder={editing.frequency === 'yearly' ? '日（任意）' : '毎月◯日（任意）'}
               min={1}
               max={31}
             />
@@ -539,9 +585,9 @@ export default function PlansPage({
           <DetailRow icon={<PiCoins />} label="金額">
             <span className="detail-value">{yen(info.estimatedCost)}</span>
           </DetailRow>
-          {info.dayOfMonth > 0 && (
+          {(info.dayOfMonth > 0 || info.month > 0) && (
             <DetailRow icon={<PiCalendarBlank />} label="支払い日">
-              <span className="detail-value">毎月{info.dayOfMonth}日</span>
+              <span className="detail-value">{shortDateText(info)}</span>
             </DetailRow>
           )}
           {info.walletId && (
