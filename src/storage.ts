@@ -175,6 +175,7 @@ function migrateV1toV2() {
     genreId: '',
     tagIds: [],
     memo: '',
+    transfer: false,
   }))
 
   // ── 欲しいもの（未定）と定期支出（毎月）を予定に統合
