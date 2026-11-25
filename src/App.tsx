@@ -293,14 +293,14 @@ export default function App() {
       const order = planItems.reduce((m, p) => Math.max(m, p.order), -1) + 1
       setPlanItems(prev => [...prev, {
         id: generateId(), name: d.name, category: d.category, estimatedCost: d.estimatedCost,
-        dayOfMonth: d.dayOfMonth, walletId: d.walletId,
+        frequency: d.frequency, month: d.month, dayOfMonth: d.dayOfMonth, walletId: d.walletId,
         genreId: d.genreId, tagIds: d.tagIds, memo: d.memo, order,
       }])
       return
     }
     setPlanItems(prev => prev.map(p => p.id === d.id ? {
       ...p, name: d.name, category: d.category, estimatedCost: d.estimatedCost,
-      dayOfMonth: d.dayOfMonth, walletId: d.walletId,
+      frequency: d.frequency, month: d.month, dayOfMonth: d.dayOfMonth, walletId: d.walletId,
       genreId: d.genreId, tagIds: d.tagIds, memo: d.memo,
     } : p))
   }

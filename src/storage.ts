@@ -2,7 +2,7 @@ import type { Genre, Goal, LedgerEntry, PlanItem, SavingsEvent, Tag, Task, Walle
 import { generateId, todayStr } from './utils'
 
 const SCHEMA_KEY = 'schemaVersion'
-const SCHEMA_VERSION = 6
+const SCHEMA_VERSION = 7
 
 export function load<T>(key: string, fallback: T): T {
   try {
@@ -57,6 +57,7 @@ export function migrate() {
   if (from < 3) migrateV2toV3()
   if (from < 4) migrateV3toV4()
   if (from < 6) migrateToV6()
+  if (from < 7) migrateToV7()
   save(SCHEMA_KEY, SCHEMA_VERSION)
 }
 
@@ -93,6 +94,7 @@ function migrateV3toV4() {
 
   const planItems: PlanItem[] = legacyPlans.filter(p => p.kind === 'monthly').map(p => ({
     id: p.id, name: p.name, category: 'subscription' as const, estimatedCost: p.estimatedCost,
+    frequency: 'monthly' as const, month: 0,
     dayOfMonth: p.dayOfMonth, walletId: p.walletId, genreId: p.genreId, tagIds: p.tagIds, memo: p.memo, order: p.order,
   }))
 
@@ -139,6 +141,14 @@ function migrateToV6() {
   save('wallets', wallets)
   save('entries', entries)
   save('planItems', legacyPlans.filter(p => p.category === 'subscription'))
+}
+
+type LegacyPlanItemV6 = Omit<PlanItem, 'frequency' | 'month'>
+
+/** v6 → v7: 定期支出に頻度（毎月／毎年）を持たせる。既存分は全部「毎月」として引き継ぐ */
+function migrateToV7() {
+  const legacyPlans = load<LegacyPlanItemV6[]>('planItems', [])
+  save('planItems', legacyPlans.map(p => ({ ...p, frequency: 'monthly' as const, month: 0 })))
 }
 
 /** v2 → v3: つもり貯金に「貯金目標」という行き先の概念を足す */
