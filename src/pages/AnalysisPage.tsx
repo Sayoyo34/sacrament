@@ -54,7 +54,8 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
     .join(' ')
 
   // ── 支出分析：ジャンル別の内訳 ──
-  const scopedExpenses = entries.filter(e => inSpan(e.date) && e.amount < 0 && matchesTags(e.tagIds, filterTags))
+  // 口座間の振替（クレカの引き落としなど）は実際の買い物ではないため集計から外す
+  const scopedExpenses = entries.filter(e => inSpan(e.date) && e.amount < 0 && !e.transfer && matchesTags(e.tagIds, filterTags))
   const expenseTotal = scopedExpenses.reduce((s, e) => s + Math.abs(e.amount), 0)
 
   const byGenre = new Map<string, number>()
@@ -63,7 +64,7 @@ export default function AnalysisPage({ entries, genres, tags, tasks, savingsEven
   })
 
   // タグ別の合計。1件が複数タグを持つため合計は支出総額と一致しない
-  const spanExpenses = entries.filter(e => inSpan(e.date) && e.amount < 0)
+  const spanExpenses = entries.filter(e => inSpan(e.date) && e.amount < 0 && !e.transfer)
   const byTag = tags
     .map(t => ({
       tag: t,

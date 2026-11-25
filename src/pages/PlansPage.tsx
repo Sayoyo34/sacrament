@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import {
   PiArrowsClockwise, PiCalendarBlank, PiCoins, PiCreditCard,
-  PiNotePencil, PiNotepad, PiPiggyBank, PiSquaresFour, PiTag,
+  PiNotePencil, PiNotepad, PiPiggyBank, PiSquaresFour, PiTag, PiWallet,
 } from 'react-icons/pi'
 import type { Genre, GoalRow, PlanCategory, PlanItem, Tag, Wallet } from '../types'
 import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/DetailModal'
@@ -84,10 +84,10 @@ export default function PlansPage({
   const [openId, setOpenId] = useState<string | null>(null)     // 貯金目標の取り崩しパネル（goal:〜）
   const [showBreakdown, setShowBreakdown] = useState(false)     // サマリーの内訳
   const [openSubs, setOpenSubs] = useState(false)
-  const [openCredit, setOpenCredit] = useState(false)
   const [openSavings, setOpenSavings] = useState(false)
   const [preview, setPreview] = useState<number | null>(null)   // 確定前の増減
   const [infoId, setInfoId] = useState<string | null>(null)     // 出費予定の情報シート
+  const [creditInfoWalletId, setCreditInfoWalletId] = useState<string | null>(null)  // クレカ口座の情報シート（読み取り専用）
 
   function startReorder(category: PlanCategory, group: PlanItem[]) {
     setReordering(category)
@@ -107,22 +107,22 @@ export default function PlansPage({
 
   const sorted = planItems.slice().sort((a, b) => a.order - b.order)
   const subs = sorted.filter(p => p.category === 'subscription')
-  const credit = sorted.filter(p => p.category === 'credit')
 
   const subsTotal = subs.reduce((s, p) => s + p.estimatedCost, 0)
-  const creditTotal = credit.reduce((s, p) => s + p.estimatedCost, 0)
-  const planTotal = subsTotal + creditTotal
   const savingsKept = goalRows.reduce((s, g) => s + g.kept, 0)
-  const remaining = totalBalance - planTotal - savingsKept
+  const remaining = totalBalance - subsTotal - savingsKept
 
   // 差し引きの内訳。色はテーマ色の濃淡で揃え、画面全体の色数を増やさない
   const segments: CalcSegment[] = [
-    { label: '出費予定（確定分）', amount: planTotal, color: theme.accent },
+    { label: '定期支出', amount: subsTotal, color: theme.accent },
     { label: 'つもり貯金', amount: savingsKept, color: `color-mix(in srgb, ${theme.accent} 30%, #fff)` },
   ]
   const groupTint = `color-mix(in srgb, ${theme.accent} 15%, #fff)`
 
   const info = infoId ? planItems.find(p => p.id === infoId) ?? null : null
+  // クレジットカードの実データは財布（Wallet）側。ここでは読み取るだけで、編集・清算は財布タブに誘導する
+  const creditWallets = wallets.filter(w => w.isCredit)
+  const creditInfo = creditInfoWalletId ? wallets.find(w => w.id === creditInfoWalletId) ?? null : null
   const editGenre = genres.find(g => g.id === editing?.genreId)
   const infoGenre = genres.find(g => g.id === info?.genreId)
 
@@ -154,8 +154,8 @@ export default function PlansPage({
     const error = firstError(
       required(editing.name, '名前'),
       notNegative(editing.estimatedCost, '金額'),
-      // 引き落とし日は任意。入れるなら 1〜31
-      () => editing.dayOfMonth !== 0 ? inRange(editing.dayOfMonth, 1, 31, '引き落とし日')() : null,
+      // 支払い日は任意。入れるなら 1〜31
+      () => editing.dayOfMonth !== 0 ? inRange(editing.dayOfMonth, 1, 31, '支払い日')() : null,
     )
     if (error) { setEditError(error); return false }
     onSavePlan({ ...editing, name: editing.name.trim() })
@@ -170,12 +170,13 @@ export default function PlansPage({
   function rowBody(p: PlanItem, compact: boolean) {
     return (
       <>
-        <GenreDot genres={genres} genreId={p.genreId} fallback={p.category === 'credit' ? <PiCreditCard /> : <PiArrowsClockwise />} />
+        <GenreDot genres={genres} genreId={p.genreId} fallback={<PiArrowsClockwise />} />
         <span className="row-main">
-          <span className="row-title">
-            {p.dayOfMonth > 0 ? `毎月${p.dayOfMonth}日 ` : ''}{p.name}
+          <span className="row-title">{p.name}</span>
+          <span className="row-sub">
+            {p.dayOfMonth > 0 ? `毎月${p.dayOfMonth}日に支払い` : '支払い日未設定'}
+            <TagList tags={tags} ids={p.tagIds} />
           </span>
-          <span className="row-sub"><TagList tags={tags} ids={p.tagIds} /></span>
         </span>
         {!compact && <span className="row-right"><span className="row-amount">{p.estimatedCost.toLocaleString()}円</span></span>}
       </>
@@ -313,13 +314,12 @@ export default function PlansPage({
     return (
       <li key={p.id}>
         <button className="row-card" onClick={() => setInfoId(p.id)}>
-          <GenreDot genres={genres} genreId={p.genreId} fallback={p.category === 'credit' ? <PiCreditCard /> : <PiArrowsClockwise />} />
+          <GenreDot genres={genres} genreId={p.genreId} fallback={<PiArrowsClockwise />} />
           <span className="row-main">
-            <span className="row-title">
-              {p.dayOfMonth > 0 ? `毎月${p.dayOfMonth}日 ` : ''}{p.name}
-            </span>
+            <span className="row-title">{p.name}</span>
             <span className="row-sub">
-              {wallets.find(w => w.id === p.walletId)?.name ?? '口座未設定'}
+              {p.dayOfMonth > 0 ? `毎月${p.dayOfMonth}日に支払い` : '支払い日未設定'}
+              ・{wallets.find(w => w.id === p.walletId)?.name ?? '口座未設定'}
             </span>
           </span>
           <span className="row-amount">{p.estimatedCost.toLocaleString()}円</span>
@@ -341,8 +341,34 @@ export default function PlansPage({
       <div className="page-scroll" {...swipe}>
         {tab === 'list' ? (
           <>
-            {renderSection('subscription', subs, 'サブスク', '定期支出の登録がありません')}
-            {renderSection('credit', credit, 'クレカ後払い', 'まだ登録がありません')}
+            {renderSection('subscription', subs, '定期支出', '定期支出の登録がありません')}
+
+            <div className="section-header">
+              <h3>クレジットカード ({creditWallets.length})</h3>
+            </div>
+            {creditWallets.length === 0 ? (
+              <p className="empty-hint">「家計簿」タブの「財布」でクレジットカードの口座を作ると、ここに表示されます</p>
+            ) : (
+              <ul className="item-list">
+                {creditWallets.map(w => (
+                  <li key={w.id}>
+                    <button className="row-card" onClick={() => setCreditInfoWalletId(w.id)}>
+                      <GenreDot genres={genres} genreId="" fallback={<PiCreditCard />} />
+                      <span className="row-main">
+                        <span className="row-title">{w.name}</span>
+                        <span className="row-sub">
+                          {w.billingDay > 0 ? `毎月${w.billingDay}日引き落とし` : '引き落とし日未設定'}
+                        </span>
+                      </span>
+                      <span className={`row-amount${w.balance < 0 ? ' remaining-negative' : ''}`}>
+                        {w.balance < 0 ? `未精算 ${(-w.balance).toLocaleString()}円` : '0円'}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
             <p className="summary" style={{ padding: '0 0.25rem' }}>
               いつ買うか決めていないものは「貯金」タブの貯金目標から貯められます
             </p>
@@ -377,22 +403,12 @@ export default function PlansPage({
                 <ul className="item-list">
                   {subs.length > 0 && groupCard(
                     <PiArrowsClockwise />,
-                    `サブスク  ${subs.length}件`,
+                    `定期支出  ${subs.length}件`,
                     '常に全額が引かれます',
                     subsTotal,
                     openSubs,
                     () => setOpenSubs(v => !v),
                     subs.map(planGroupRow),
-                  )}
-
-                  {credit.length > 0 && groupCard(
-                    <PiCreditCard />,
-                    `クレカ後払い  ${credit.length}件`,
-                    '確定した請求額が引かれます',
-                    creditTotal,
-                    openCredit,
-                    () => setOpenCredit(v => !v),
-                    credit.map(planGroupRow),
                   )}
 
                   {goalRows.length > 0 && groupCard(
@@ -414,39 +430,18 @@ export default function PlansPage({
       {/* 一覧タブ：内容の編集のみ */}
       {editing && (
         <DetailModal
-          icon={editGenre?.icon ?? (editing.category === 'credit' ? <PiCreditCard /> : <PiNotepad />)}
+          icon={editGenre?.icon ?? <PiNotepad />}
           color={editGenre ? `${editGenre.color}55` : theme.soft}
           name={editing.name}
           onNameChange={v => setEditing({ ...editing, name: v })}
-          namePlaceholder={editing.category === 'credit' ? '例: 楽天カード' : '例: Netflix'}
+          namePlaceholder="例: Netflix"
           onClose={() => { setEditing(null); setEditError('') }}
           onSave={saveEdit}
           startInEdit={editing.id === null}
           error={editError}
           onDelete={editing.id ? () => setDeleteTarget({ id: editing.id!, name: editing.name }) : undefined}
         >
-          <DetailRow
-            icon={<PiArrowsClockwise />}
-            label="種類"
-            value={<ReadValue>{editing.category === 'credit' ? 'クレカ後払い' : 'サブスク'}</ReadValue>}
-          >
-            <div className="type-toggle">
-              <button
-                className={editing.category !== 'subscription' ? 'btn-sub' : ''}
-                onClick={() => setEditing({ ...editing, category: 'subscription' })}
-              >サブスク</button>
-              <button
-                className={editing.category !== 'credit' ? 'btn-sub' : ''}
-                onClick={() => setEditing({ ...editing, category: 'credit' })}
-              >クレカ後払い</button>
-            </div>
-          </DetailRow>
-
-          <DetailRow
-            icon={<PiCoins />}
-            label={editing.category === 'credit' ? '確定額' : '金額'}
-            value={<ReadValue>{yen(editing.estimatedCost)}</ReadValue>}
-          >
+          <DetailRow icon={<PiCoins />} label="金額" value={<ReadValue>{yen(editing.estimatedCost)}</ReadValue>}>
             <input
               type="number"
               value={editing.estimatedCost || ''}
@@ -454,16 +449,11 @@ export default function PlansPage({
               placeholder="0"
               min={0}
             />
-            {editing.category === 'credit' && (
-              <p className="summary" style={{ marginTop: '0.5rem' }}>
-                請求が確定したら、ここの金額を更新してください
-              </p>
-            )}
           </DetailRow>
 
           <DetailRow
             icon={<PiCalendarBlank />}
-            label="引き落とし日"
+            label="支払い日"
             value={
               <ReadValue muted={editing.dayOfMonth === 0}>
                 {editing.dayOfMonth > 0 ? `毎月${editing.dayOfMonth}日` : '未設定'}
@@ -481,7 +471,7 @@ export default function PlansPage({
           </DetailRow>
 
           <DetailRow
-            icon={<PiCreditCard />}
+            icon={<PiWallet />}
             label="口座"
             value={
               <ReadValue muted={!editing.walletId}>
@@ -541,26 +531,55 @@ export default function PlansPage({
       {/* 計算タブ：出費予定の詳細（金額は変えられない） */}
       {info && (
         <DetailModal
-          icon={infoGenre?.icon ?? (info.category === 'credit' ? <PiCreditCard /> : <PiNotepad />)}
+          icon={infoGenre?.icon ?? <PiNotepad />}
           color={infoGenre ? `${infoGenre.color}55` : theme.soft}
           name={info.name}
           onClose={() => setInfoId(null)}
         >
-          <DetailRow icon={<PiCoins />} label={info.category === 'credit' ? '確定額' : '金額'}>
+          <DetailRow icon={<PiCoins />} label="金額">
             <span className="detail-value">{yen(info.estimatedCost)}</span>
           </DetailRow>
           {info.dayOfMonth > 0 && (
-            <DetailRow icon={<PiCalendarBlank />} label="引き落とし日">
+            <DetailRow icon={<PiCalendarBlank />} label="支払い日">
               <span className="detail-value">毎月{info.dayOfMonth}日</span>
             </DetailRow>
           )}
           {info.walletId && (
-            <DetailRow icon={<PiCreditCard />} label="口座">
+            <DetailRow icon={<PiWallet />} label="口座">
               <span className="detail-value">{wallets.find(w => w.id === info.walletId)?.name ?? '未設定'}</span>
             </DetailRow>
           )}
           <p className="summary" style={{ padding: '0.5rem 0.25rem' }}>
             出費予定は常に全額が差し引かれます。内容の変更は「出費予定」タブから行えます。
+          </p>
+        </DetailModal>
+      )}
+
+      {/* 出費予定タブ：クレカ口座の情報（読み取り専用。実データと操作は財布タブ） */}
+      {creditInfo && (
+        <DetailModal
+          icon={<PiCreditCard />}
+          color={theme.soft}
+          name={creditInfo.name}
+          onClose={() => setCreditInfoWalletId(null)}
+        >
+          <DetailRow icon={<PiCoins />} label="未精算の残高">
+            <span className="detail-value">{yen(Math.max(0, -creditInfo.balance))}</span>
+          </DetailRow>
+          {creditInfo.billingDay > 0 && (
+            <DetailRow icon={<PiCalendarBlank />} label="引き落とし日">
+              <span className="detail-value">毎月{creditInfo.billingDay}日</span>
+            </DetailRow>
+          )}
+          {creditInfo.payFromWalletId && (
+            <DetailRow icon={<PiWallet />} label="引き落とし元の口座">
+              <span className="detail-value">
+                {wallets.find(w => w.id === creditInfo.payFromWalletId)?.name ?? '未設定'}
+              </span>
+            </DetailRow>
+          )}
+          <p className="summary" style={{ padding: '0.5rem 0.25rem' }}>
+            支払いの記録や清算は「家計簿」タブの「財布」から行えます。
           </p>
         </DetailModal>
       )}
