@@ -2,13 +2,14 @@ import { useState, useEffect, useRef } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import type { Genre, Goal, GoalDraft, GoalRow, LedgerEntry, PlanItem, SavingsEvent, Tag, Task, Wallet } from './types'
 import LedgerPage, { type EntryDraft, type WalletDraft } from './pages/LedgerPage'
-import PlansPage, { type PlanDraft } from './pages/PlansPage'
+import PlansPage from './pages/PlansPage'
+import type { PlanDraft } from './plans'
 import SavingsPage, { type SavingsDraft, type TaskDraft } from './pages/SavingsPage'
 import AnalysisPage from './pages/AnalysisPage'
 import MorePage from './pages/MorePage'
 import BottomNav from './components/BottomNav'
 import type { LabelDraft } from './components/LabelListPage'
-import { DEFAULT_GENRES, load, resetAll, save } from './storage'
+import { DEFAULT_GENRES, load, normalizeWallet, resetAll, save } from './storage'
 import type { Page } from './theme'
 import { generateId, todayStr } from './utils'
 import { hasSupabase, supabase } from './supabaseClient'
@@ -64,7 +65,7 @@ export default function App() {
   }
 
   function hydrateFromCloud(cloud: AppData) {
-    setWallets(cloud.wallets)
+    setWallets(cloud.wallets.map(normalizeWallet))
     setEntries(cloud.entries)
     setPlanItems(cloud.planItems)
     setTasks(cloud.tasks)
@@ -203,6 +204,7 @@ export default function App() {
       setEntries(prev => [...prev, {
         id: generateId(), walletId: d.walletId, label: d.label, amount: signed,
         date: d.date, genreId: d.genreId, tagIds: d.tagIds, memo: d.memo, transfer: false,
+        ...(d.planId ? { planId: d.planId } : {}),
       }])
       setWallets(prev => prev.map(w => w.id === d.walletId ? { ...w, balance: w.balance + signed } : w))
       return
@@ -232,12 +234,14 @@ export default function App() {
       setWallets(prev => [...prev, {
         id: generateId(), name: d.name, balance: d.balance,
         isCredit: d.isCredit, billingDay: d.billingDay, payFromWalletId: d.payFromWalletId,
+        closingDay: d.closingDay, payMonthOffset: d.payMonthOffset,
       }])
       return
     }
     setWallets(prev => prev.map(w => w.id === d.id ? {
       ...w, name: d.name, balance: d.balance,
       isCredit: d.isCredit, billingDay: d.billingDay, payFromWalletId: d.payFromWalletId,
+      closingDay: d.closingDay, payMonthOffset: d.payMonthOffset,
     } : w))
   }
 
@@ -267,11 +271,15 @@ export default function App() {
     }
   }
 
-  /** クレカの清算：未精算額ぶんを口座残高に足し戻して0にし、実際に引き落とされた額を引き落とし元の口座から引く */
-  function settleCredit(walletId: string, actualAmount: number) {
+  /**
+   * クレカの清算：請求額（face）ぶんを口座残高に足し戻し、実際に引き落とされた額を引き落とし元の口座から引く。
+   * face を省くと未精算の全額。締め日のあるカードは、締め後の利用分を残すため今月の請求額だけを渡す
+   */
+  function settleCredit(walletId: string, actualAmount: number, face?: number) {
     const w = wallets.find(x => x.id === walletId)
     if (!w || !w.payFromWalletId) return
-    const faceAmount = Math.max(0, -w.balance)
+    const owed = Math.max(0, -w.balance)
+    const faceAmount = face === undefined ? owed : Math.min(owed, Math.max(0, face))
     if (faceAmount <= 0) return
     const bankId = w.payFromWalletId
     const today = todayStr()
@@ -566,6 +574,7 @@ export default function App() {
           <LedgerPage
             wallets={wallets}
             entries={entries}
+            planItems={planItems}
             genres={genres}
             tags={tags}
             totalBalance={totalBalance}
@@ -607,14 +616,8 @@ export default function App() {
             planItems={planItems}
             wallets={wallets}
             genres={genres}
-            tags={tags}
             totalBalance={totalBalance}
             goalRows={goalRows}
-            onSavePlan={savePlan}
-            onRemovePlan={removePlan}
-            onApplyPlanEdit={applyPlanEdit}
-            onSaveGenre={saveGenre}
-            onSaveTag={saveTag}
             onWithdrawSavings={withdrawSavings}
           />
         )}
@@ -631,6 +634,11 @@ export default function App() {
           <MorePage
             genres={genres}
             tags={tags}
+            planItems={planItems}
+            wallets={wallets}
+            onSavePlan={savePlan}
+            onRemovePlan={removePlan}
+            onApplyPlanEdit={applyPlanEdit}
             onSaveGenre={saveGenre}
             onRemoveGenres={removeGenres}
             onApplyGenreEdit={applyGenreEdit}

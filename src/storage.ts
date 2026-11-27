@@ -2,7 +2,7 @@ import type { Genre, Goal, LedgerEntry, PlanItem, SavingsEvent, Tag, Task, Walle
 import { generateId, todayStr } from './utils'
 
 const SCHEMA_KEY = 'schemaVersion'
-const SCHEMA_VERSION = 7
+const SCHEMA_VERSION = 8
 
 export function load<T>(key: string, fallback: T): T {
   try {
@@ -58,6 +58,7 @@ export function migrate() {
   if (from < 4) migrateV3toV4()
   if (from < 6) migrateToV6()
   if (from < 7) migrateToV7()
+  if (from < 8) migrateToV8()
   save(SCHEMA_KEY, SCHEMA_VERSION)
 }
 
@@ -121,7 +122,7 @@ function migrateToV6() {
   const legacyPlans = load<LegacyPlanItemV4[]>('planItems', [])
   const today = todayStr()
 
-  const wallets: Wallet[] = legacyWallets.map(w => ({ ...w, isCredit: false, billingDay: 0, payFromWalletId: '' }))
+  const wallets = legacyWallets.map(w => ({ ...w, isCredit: false, billingDay: 0, payFromWalletId: '' }))
   const entries: LedgerEntry[] = legacyEntries.map(e => ({ ...e, transfer: false }))
 
   legacyPlans.filter(p => p.category === 'credit').forEach(p => {
@@ -149,6 +150,16 @@ type LegacyPlanItemV6 = Omit<PlanItem, 'frequency' | 'month'>
 function migrateToV7() {
   const legacyPlans = load<LegacyPlanItemV6[]>('planItems', [])
   save('planItems', legacyPlans.map(p => ({ ...p, frequency: 'monthly' as const, month: 0 })))
+}
+
+/** 締め日などが無い古い口座（v7以前やクラウドの古いデータ）に既定値を入れる */
+export function normalizeWallet(w: Omit<Wallet, 'closingDay' | 'payMonthOffset'> & Partial<Wallet>): Wallet {
+  return { ...w, closingDay: w.closingDay ?? 0, payMonthOffset: w.payMonthOffset ?? 1 }
+}
+
+/** v7 → v8: クレカに締め日と支払い月を持たせる。既存分は締め日未設定・翌月払いとして引き継ぐ */
+function migrateToV8() {
+  save('wallets', load<Wallet[]>('wallets', []).map(normalizeWallet))
 }
 
 /** v2 → v3: つもり貯金に「貯金目標」という行き先の概念を足す */
