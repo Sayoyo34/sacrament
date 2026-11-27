@@ -444,26 +444,6 @@ export default function App() {
     }])
   }
 
-  /** 新しい取り崩しから順に取り消す。使い切ったイベントは消す */
-  function undoWithdrawSavings(goalId: string, amount: number) {
-    const stat = savingsByGoal.get(goalId) ?? { earned: 0, withdrawn: 0 }
-    let left = Math.min(amount, stat.withdrawn)
-    if (left <= 0) return
-    setSavingsEvents(prev => {
-      const next = [...prev]
-      for (let i = next.length - 1; i >= 0 && left > 0; i--) {
-        const ev = next[i]
-        if (ev.amount >= 0 || ev.goalId !== goalId) continue
-        const take = Math.min(left, -ev.amount)
-        left -= take
-        const rest = ev.amount + take
-        if (rest === 0) next.splice(i, 1)
-        else next[i] = { ...ev, amount: rest }
-      }
-      return next
-    })
-  }
-
   // ── ジャンル / タグ ────────────────────
   /** 保存した項目の id を返す。項目追加の途中でその場作成した時に、作った先を選ぶのに使う */
   function saveGenre(d: LabelDraft): string {
@@ -636,7 +616,6 @@ export default function App() {
             onSaveGenre={saveGenre}
             onSaveTag={saveTag}
             onWithdrawSavings={withdrawSavings}
-            onUndoWithdrawSavings={undoWithdrawSavings}
           />
         )}
         {page === 'analysis' && (

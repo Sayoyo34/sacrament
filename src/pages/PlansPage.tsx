@@ -62,8 +62,7 @@ interface Props {
   onSavePlan: (draft: PlanDraft) => void
   onRemovePlan: (id: string) => void
   onApplyPlanEdit: (orderedIds: string[], removedIds: string[]) => void
-  onWithdrawSavings: (goalId: string, amount: number) => void
-  onUndoWithdrawSavings: (goalId: string, amount: number) => void
+  onWithdrawSavings: (goalId: string, amount: number, label?: string) => void
   onSaveGenre: (draft: LabelDraft) => string
   onSaveTag: (draft: LabelDraft) => string
 }
@@ -79,7 +78,7 @@ function Progress({ ratio, color }: { ratio: number; color: string }) {
 export default function PlansPage({
   planItems, wallets, genres, tags, totalBalance, goalRows,
   onSavePlan, onRemovePlan, onApplyPlanEdit,
-  onWithdrawSavings, onUndoWithdrawSavings,
+  onWithdrawSavings,
   onSaveGenre, onSaveTag,
 }: Props) {
   const theme = themeOf('plans')
@@ -273,7 +272,7 @@ export default function PlansPage({
   }
 
   // ── 計算タブ ───────────────────────────
-  /** 取り崩し／戻すを行の下に開く貯金の行 */
+  /** 取り崩しを行の下に開く貯金の行 */
   function renderGoalRow(g: GoalRow) {
     const key = `goal:${g.id || '__none'}`
     const open = openId === key
@@ -290,11 +289,11 @@ export default function PlansPage({
           </span>
           <span className="row-main">
             <span className="row-title">{g.name}</span>
-            <Progress ratio={g.earned > 0 ? g.withdrawn / g.earned : 0} color={g.color} />
+            {g.targetAmount > 0 && <Progress ratio={g.kept / g.targetAmount} color={g.color} />}
           </span>
           <span className="row-right">
-            <span className="row-note">取崩 {g.withdrawn.toLocaleString()}円 / {g.earned.toLocaleString()}円</span>
-            <span className="row-amount" style={{ color: readableColor(g.color) }}>残 {g.kept.toLocaleString()}円</span>
+            {g.targetAmount > 0 && <span className="row-note">金額 {g.targetAmount.toLocaleString()}円</span>}
+            <span className="row-amount" style={{ color: readableColor(g.color) }}>{g.kept.toLocaleString()}円</span>
           </span>
           <span className="row-chevron">{open ? '⌃' : '⌄'}</span>
         </button>
@@ -302,26 +301,24 @@ export default function PlansPage({
         {open && (
           <InlineDeduct
             remaining={g.kept}
-            done={g.withdrawn}
             accent={theme.accent}
-            budget={remaining + simDelta}
             budgetSign={1}
-            deductVerb={{ now: '取り崩す', past: '取り崩した' }}
+            verb="取り崩す"
             info={
               <>
                 <p className="summary">
-                  貯めた額 {yen(g.earned)}　取り崩し済み {yen(g.withdrawn)}　残り {yen(g.kept)}
-                  {g.targetAmount > 0 && `　目標 ${yen(g.targetAmount)}`}
+                  いま貯まっている額 {yen(g.kept)}
+                  {g.targetAmount > 0 && `　金額（目安） ${yen(g.targetAmount)}`}
                 </p>
                 <p className="summary">取り崩した分は取っておく額から外れ、その分だけ使える金額が増えます。</p>
               </>
             }
-            onDeduct={amount => onWithdrawSavings(g.id, amount)}
-            onUndo={amount => onUndoWithdrawSavings(g.id, amount)}
+            // ウィッシュ詳細からの取り崩し（既定の「取り崩し」）と履歴で見分けられるようにする
+            onDeduct={amount => onWithdrawSavings(g.id, amount, '計算タブから取り崩し')}
             onPreview={setPreview}
             onClose={() => setOpenId(null)}
             confirmLabel={amount =>
-              `「${g.name}」から ${yen(amount)} を取り崩します。取っておくはずだったお金です。本当によろしいですか？`}
+              `「${g.name}」から ${yen(amount)} を取り崩します。このあと使える金額は ${yen(remaining + amount)} になります。取っておくはずだったお金です。本当によろしいですか？`}
           />
         )}
       </li>

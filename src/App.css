@@ -333,8 +333,6 @@
   padding-bottom: 0.6rem;
 }
 
-.inline-modes { display: flex; gap: 0.4rem; }
-.inline-modes button { flex: 1; padding: 0.45rem; }
 
 .inline-amount {
   display: flex;
@@ -373,39 +371,6 @@
 .inline-input input:focus { border: none; }
 
 .inline-unit { font-size: 0.7rem; color: var(--text); }
-
-.inline-chips { display: flex; gap: 0.35rem; }
-
-.inline-chip {
-  flex: 1;
-  background: var(--code-bg);
-  color: var(--text);
-  border: 1.5px solid transparent;
-  font-size: 0.72rem;
-  font-weight: 600;
-  border-radius: 999px;
-  padding: 0.4rem 0.2rem;
-}
-
-.inline-chip.on { background: var(--bg); }
-
-.inline-preview {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  background: var(--code-bg);
-  border-radius: 10px;
-  padding: 0.5rem 0.7rem;
-  font-size: 0.72rem;
-  color: var(--text);
-}
-
-.inline-preview strong {
-  font-size: 1rem;
-  font-family: var(--mono);
-  white-space: nowrap;
-}
 
 .inline-actions { display: flex; gap: 0.5rem; }
 .inline-actions button { flex: 1; padding: 0.6rem; font-size: 0.85rem; }
