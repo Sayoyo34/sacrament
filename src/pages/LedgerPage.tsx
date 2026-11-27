@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   PiArrowsClockwise, PiCalendarBlank, PiCoins, PiCreditCard,
   PiLightbulb, PiNotePencil, PiReceipt, PiSquaresFour, PiTag, PiWallet,
@@ -95,6 +95,15 @@ export default function LedgerPage({
   } | null>(null)
   const [settleAmount, setSettleAmount] = useState(0)
   const [openDue, setOpenDue] = useState(false)   // 引き落とし予定の内訳
+  /** 保存した記録が、いま見ている月とは別の月に入ったときの知らせ（YYYY-MM） */
+  const [savedElsewhere, setSavedElsewhere] = useState<string | null>(null)
+
+  // 知らせは数秒で消す
+  useEffect(() => {
+    if (!savedElsewhere) return
+    const id = setTimeout(() => setSavedElsewhere(null), 5000)
+    return () => clearTimeout(id)
+  }, [savedElsewhere])
 
   // 口座の並び替え（確定するまで下書きだけを書き換える）
   const walletSession = useEditSession<Wallet>()
@@ -126,6 +135,8 @@ export default function LedgerPage({
   // 表示中の月の引き落とし予定（口座払いの定期支出＋クレカの請求）。
   // カード払いの定期支出は、そのカードの締め期間の請求の中に入れて二重に数えない
   const isThisMonth = month === thisMonth()
+  // 先の月は記録・清算できない（記録するとその月の一覧に入り、今月を見ていると見当たらなくなるため）
+  const isFutureMonth = month > thisMonth()
   const todayDate = todayStr()
   const creditIds = new Set(wallets.filter(w => w.isCredit).map(w => w.id))
   const bills = creditBillsIn(wallets, entries, planItems, month, todayDate)
@@ -208,6 +219,8 @@ export default function LedgerPage({
     if (error) { setEntryError(error); return false }
     onSaveEntry({ ...draft, label: draft.label.trim() })
     setEntryError('')
+    // カード払いのサブスク（使った日＝前月）や日付の書き換えで、表示中の月の一覧から見えなくなる場合に知らせる
+    setSavedElsewhere(monthOf(draft.date) !== month ? monthOf(draft.date) : null)
     if (draft.id === null) { setDraft(null); return false }
     setDraft({ ...draft, label: draft.label.trim() })
     return true
@@ -336,7 +349,9 @@ export default function LedgerPage({
                               </span>
                             </span>
                             <span className="row-amount">{r.amount.toLocaleString()}円</span>
-                            {dueAction(r.done ? '記録済み' : null, r.occ.plan.walletId ? () => recordOcc(r.occ) : null, '記録')}
+                            {isFutureMonth
+                              ? null
+                              : dueAction(r.done ? '記録済み' : null, r.occ.plan.walletId ? () => recordOcc(r.occ) : null, '記録')}
                           </div>
                         ) : (
                           <>
@@ -368,7 +383,7 @@ export default function LedgerPage({
                                       <span className="row-sub">{o.plan.dayOfMonth > 0 ? shortDay(o.date) : '日付未設定'}・カード払い{!o.recorded && '・金額は目安'}</span>
                                     </span>
                                     <span className="row-amount">{o.amount.toLocaleString()}円</span>
-                                    {dueAction(o.recorded ? '記録済み' : r.done ? '—' : null, () => recordOcc(o), '記録')}
+                                    {!isFutureMonth && dueAction(o.recorded ? '記録済み' : r.done ? '—' : null, () => recordOcc(o), '記録')}
                                   </li>
                                 ))}
                               </ul>
@@ -499,6 +514,18 @@ export default function LedgerPage({
           </div>
         )}
       </div>
+
+      {savedElsewhere && (
+        <div className="toast" role="status">
+          <span>{monthLabel(savedElsewhere)}の記録に入りました</span>
+          <button
+            className="toast-action"
+            onClick={() => { setMonth(savedElsewhere); setTab('ledger'); setSavedElsewhere(null) }}
+          >
+            見る
+          </button>
+        </div>
+      )}
 
       {draft && (
         <DetailModal
