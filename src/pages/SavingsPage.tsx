@@ -642,7 +642,7 @@ export default function SavingsPage({
 
             <p className="summary" style={{ textAlign: 'center', padding: '1rem 0' }}>
               欲しいもの・やりたいことは＋ボタンからメモできます。タップすると詳細からつもり貯金を追加でき、直近の記録も見られます。
-              買ったら残りがいくらになるかは「予定 &gt; 計算」タブ、記録の全体は「分析 &gt; 貯金履歴」から見られます
+              叶えたら残りがいくらになるかは「予定 &gt; 計算」タブ、記録の全体は「分析 &gt; 貯金履歴」から見られます
             </p>
           </>
         )}

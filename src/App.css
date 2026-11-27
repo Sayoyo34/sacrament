@@ -220,6 +220,10 @@
 }
 
 .hero-bar-rest { background: rgba(255, 255, 255, 0.85); }
+/* 試算・確定前に引かれる分。実際の差し引きと見分けられるよう斜線にする */
+.hero-bar-pending {
+  background: repeating-linear-gradient(-45deg, var(--accent) 0 3px, color-mix(in srgb, var(--accent) 35%, #fff) 3px 6px);
+}
 
 .hero-legend {
   display: flex;
@@ -295,6 +299,8 @@
 .hero-breakdown .hero-note { opacity: 0.65; }
 
 .hero-calc-total.hero-negative { color: #b3261e; }
+.hero-calc-sim > span:first-child { flex-direction: column; align-items: flex-start; gap: 0.05rem; }
+.hero-calc-note { font-size: 0.68rem; opacity: 0.75; }
 
 /* バーを挟まず数字の直下に内訳を開く場合（貯金目標タブ）の間隔 */
 .hero-number + .hero-breakdown { margin-top: 0.75rem; }
