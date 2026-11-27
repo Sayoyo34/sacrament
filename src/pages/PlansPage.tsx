@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import {
-  PiArrowsClockwise, PiCalendarBlank, PiCoins, PiCreditCard,
+  PiArrowsClockwise, PiCalendarBlank, PiCheck, PiCoins, PiCreditCard,
   PiNotePencil, PiNotepad, PiPiggyBank, PiSquaresFour, PiTag, PiWallet,
 } from 'react-icons/pi'
 import type { Genre, GoalRow, PlanCategory, PlanFrequency, PlanItem, Tag, Wallet } from '../types'
@@ -89,6 +89,7 @@ export default function PlansPage({
     setEditing(null)
     setOpenId(null)
     setPreview(null)
+    setPicked(new Set())
     exitReorder()
   }
   const swipe = useSwipeTabs(['list', 'calc'] as const, tab, changeTab)
@@ -107,6 +108,7 @@ export default function PlansPage({
   const [preview, setPreview] = useState<number | null>(null)   // 確定前の増減
   const [infoId, setInfoId] = useState<string | null>(null)     // 出費予定の情報シート
   const [creditInfoWalletId, setCreditInfoWalletId] = useState<string | null>(null)  // クレカ口座の情報シート（読み取り専用）
+  const [picked, setPicked] = useState<Set<string>>(new Set())  // 「もし買ったら」で選んだウィッシュ。保存しない
 
   function startReorder(category: PlanCategory, group: PlanItem[]) {
     setReordering(category)
@@ -136,6 +138,24 @@ export default function PlansPage({
     { label: '定期支出', amount: subsTotal, color: theme.accent },
     { label: 'つもり貯金', amount: savingsKept, color: `color-mix(in srgb, ${theme.accent} 30%, #fff)` },
   ]
+  // ── もし買ったら（ウィッシュのお試し計算。実データは動かさない） ──
+  // 金額未定のウィッシュは計算できないので並べない
+  const wishes = goalRows.filter(g => g.id && g.targetAmount > 0)
+  const hiddenWishCount = goalRows.filter(g => g.id && g.targetAmount === 0).length
+  /** 買ったときに使える金額から減る分。積んだつもり貯金はもう引かれているので、その分は二重に引かない */
+  const wishCost = (g: GoalRow) => Math.max(0, g.targetAmount - g.kept)
+  const simDelta = -wishes.filter(g => picked.has(g.id)).reduce((s, g) => s + wishCost(g), 0)
+  const shownPreview = preview === null && simDelta === 0 ? null : (preview ?? 0) + simDelta
+
+  function togglePick(id: string) {
+    setPicked(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   const groupTint = `color-mix(in srgb, ${theme.accent} 15%, #fff)`
 
   const info = infoId ? planItems.find(p => p.id === infoId) ?? null : null
@@ -284,7 +304,7 @@ export default function PlansPage({
             remaining={g.kept}
             done={g.withdrawn}
             accent={theme.accent}
-            budget={remaining}
+            budget={remaining + simDelta}
             budgetSign={1}
             deductVerb={{ now: '取り崩す', past: '取り崩した' }}
             info={
@@ -391,7 +411,7 @@ export default function PlansPage({
             )}
 
             <p className="summary" style={{ padding: '0 0.25rem' }}>
-              いつ買うか決めていないものは「貯金」タブの貯金目標から貯められます
+              いつ買うか決めていないものは「貯金」タブのウィッシュにメモしておけます
             </p>
             <div className="fab-row">
               <button
@@ -410,10 +430,60 @@ export default function PlansPage({
               remaining={remaining}
               segments={segments}
               unspent={0}
-              preview={preview}
+              preview={shownPreview}
               open={showBreakdown}
               onToggle={() => setShowBreakdown(v => !v)}
             />
+
+            <div className="section-header">
+              <h3>もし買ったら</h3>
+              {picked.size > 0 ? (
+                <button className="link-btn section-hint" onClick={() => setPicked(new Set())}>選択をクリア</button>
+              ) : (
+                <span className="section-hint">タップで試算</span>
+              )}
+            </div>
+            {wishes.length === 0 ? (
+              <p className="empty-hint">
+                「貯金」タブのウィッシュに金額を入れて登録すると、<br />買ったら残りがいくらになるかをここで試せます
+              </p>
+            ) : (
+              <>
+                <div className="sort-list">
+                  {wishes.map(g => {
+                    const on = picked.has(g.id)
+                    const cost = wishCost(g)
+                    return (
+                      <button
+                        key={g.id}
+                        className={`sort-row${on ? ' on' : ''}`}
+                        style={on ? { borderColor: theme.accent } : undefined}
+                        onClick={() => togglePick(g.id)}
+                        aria-pressed={on}
+                      >
+                        <span
+                          className={`sort-check${on ? ' on' : ''}`}
+                          style={on ? { background: theme.accent, borderColor: theme.accent } : undefined}
+                        >
+                          {on ? <PiCheck /> : ''}
+                        </span>
+                        <span className="sort-main">
+                          <span className="sort-name">{g.icon} {g.name}</span>
+                          <span className="sort-date">
+                            {yen(g.targetAmount)}{g.kept > 0 && ` − 貯めた分 ${yen(Math.min(g.kept, g.targetAmount))}`}
+                          </span>
+                        </span>
+                        <span className="sort-amount">{cost > 0 ? `−${cost.toLocaleString()}円` : '貯金で足りる'}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="summary" style={{ padding: '0.4rem 0.25rem 0', lineHeight: 1.7 }}>
+                  試算だけで、記録やつもり貯金は変わりません。
+                  {hiddenWishCount > 0 && `金額が未定のウィッシュ（${hiddenWishCount}件）は表示していません。`}
+                </p>
+              </>
+            )}
 
             {(planItems.length > 0 || goalRows.length > 0) && (
               <>

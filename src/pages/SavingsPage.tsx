@@ -396,7 +396,7 @@ export default function SavingsPage({
           <span className="row-sub">
             {g.targetAmount > 0
               ? `${g.kept.toLocaleString()} / ${g.targetAmount.toLocaleString()}円`
-              : `${g.kept.toLocaleString()}円（上限なし）`}
+              : `${g.kept.toLocaleString()}円（金額未定）`}
           </span>
           <span className="bar">
             <span className="bar-fill" style={{ width: `${ratio * 100}%`, background: g.color }} />
@@ -480,7 +480,7 @@ export default function SavingsPage({
       )}
 
       <TopTabs
-        tabs={[{ id: 'tasks' as Tab, label: 'タスク' }, { id: 'goals' as Tab, label: '貯金目標' }]}
+        tabs={[{ id: 'tasks' as Tab, label: 'タスク' }, { id: 'goals' as Tab, label: 'ウィッシュ' }]}
         active={tab}
         onChange={changeTab}
         accent={theme.accent}
@@ -563,7 +563,7 @@ export default function SavingsPage({
                 <span className="inbox-main">
                   <span className="inbox-title">行き先が未定のお金</span>
                   <span className="inbox-note">
-                    {realGoals.length > 0 ? '目標に振り分けられます' : 'まず目標を作りましょう'}
+                    {realGoals.length > 0 ? 'ウィッシュに振り分けられます' : 'まずウィッシュを登録しましょう'}
                   </span>
                 </span>
                 <span className="inbox-amount">{inbox.kept.toLocaleString()}円</span>
@@ -572,7 +572,7 @@ export default function SavingsPage({
             )}
 
             <div className="section-header">
-              <h3>目標 ({goalSession.editing ? goalSession.draft.length : realGoals.length})</h3>
+              <h3>ウィッシュ ({goalSession.editing ? goalSession.draft.length : realGoals.length})</h3>
               {!goalSession.editing && realGoals.length > 1 && (
                 <div className="header-actions">
                   <ReorderButton onClick={() => goalSession.start(realGoals)} />
@@ -601,7 +601,7 @@ export default function SavingsPage({
               />
             ) : realGoals.length === 0 ? (
               <p className="empty-hint">
-                貯金の行き先を作れます<br />下の＋から追加できます
+                欲しいもの・やりたいことをメモできます<br />下の＋から追加できます
               </p>
             ) : (
               <ul className="item-list">
@@ -628,8 +628,8 @@ export default function SavingsPage({
                 <button
                   className="fab"
                   style={{ background: theme.accent, boxShadow: `0 4px 14px ${theme.accent}66` }}
-                  aria-label="目標を追加"
-                  title="目標を追加"
+                  aria-label="ウィッシュを追加"
+                  title="ウィッシュを追加"
                   onClick={() => {
                     setGoalError('')
                     setGoalDraft({ id: null, name: '', icon: '🐷', color: '#f472b6', targetAmount: 0 })
@@ -641,8 +641,8 @@ export default function SavingsPage({
             )}
 
             <p className="summary" style={{ textAlign: 'center', padding: '1rem 0' }}>
-              目標を作るときは＋ボタンから。目標をタップすると詳細から貯金を追加でき、直近の記録も見られます。
-              取り崩しは「予定 &gt; 計算」タブ、記録の全体は「分析 &gt; 貯金履歴」から見られます
+              欲しいもの・やりたいことは＋ボタンからメモできます。タップすると詳細からつもり貯金を追加でき、直近の記録も見られます。
+              買ったら残りがいくらになるかは「予定 &gt; 計算」タブ、記録の全体は「分析 &gt; 貯金履歴」から見られます
             </p>
           </>
         )}
@@ -754,7 +754,7 @@ export default function SavingsPage({
           >
             {realGoals.length === 0 ? (
               <p className="summary">
-                貯金先は「貯金目標」タブの＋から作れます。決めずに進めても、あとから振り分けられます
+                貯金先は「ウィッシュ」タブの＋から作れます。決めずに進めても、あとから振り分けられます
               </p>
             ) : (
               <select value={draft.goalId} onChange={e => setDraft({ ...draft, goalId: e.target.value })}>
@@ -775,15 +775,15 @@ export default function SavingsPage({
           accent={readableColor(goalDraft.color)}
           name={goalDraft.name}
           onNameChange={v => setGoalDraft({ ...goalDraft, name: v })}
-          namePlaceholder="例: 一人暮らし初期費用"
+          namePlaceholder="例: イヤホン、台湾旅行、一人暮らし"
           onClose={() => { setGoalDraft(null); setGoalError(''); setPickIcon(false); setPickColor(false); setShowAllHistory(false) }}
           onEditIcon={() => setPickIcon(true)}
           onEditColor={() => setPickColor(true)}
           error={goalError}
           onSave={() => {
             const error = firstError(
-              required(goalDraft.name, '目標の名前'),
-              notNegative(goalDraft.targetAmount, '目標額'),
+              required(goalDraft.name, '名前'),
+              notNegative(goalDraft.targetAmount, '金額'),
             )
             if (error) { setGoalError(error); return false }
             onSaveGoal({ ...goalDraft, name: goalDraft.name.trim() })
@@ -820,10 +820,10 @@ export default function SavingsPage({
 
             <DetailRow
               icon={<PiTarget />}
-              label="目標額"
+              label="金額（目安）"
               value={
                 <ReadValue muted={goalDraft.targetAmount === 0}>
-                  {goalDraft.targetAmount > 0 ? yen(goalDraft.targetAmount) : '上限なし'}
+                  {goalDraft.targetAmount > 0 ? yen(goalDraft.targetAmount) : '未定'}
                 </ReadValue>
               }
             >
@@ -831,7 +831,7 @@ export default function SavingsPage({
                 type="number"
                 value={goalDraft.targetAmount || ''}
                 onChange={e => setGoalDraft({ ...goalDraft, targetAmount: Number(e.target.value) })}
-                placeholder="未入力なら上限なし"
+                placeholder="わからなければ空欄でOK"
                 min={0}
               />
             </DetailRow>
@@ -885,7 +885,7 @@ export default function SavingsPage({
               style={{ display: 'block', margin: '0.75rem auto 0', padding: '0.55rem 1.75rem' }}
               onClick={() => setDeleteGoal(goalRow)}
             >
-              目標を削除
+              削除
             </button>
           )}
         </DetailModal>
@@ -1043,7 +1043,7 @@ export default function SavingsPage({
               {realGoals.length === 0 ? (
                 <>
                   <p className="summary" style={{ lineHeight: 1.8, marginBottom: '1rem' }}>
-                    振り分け先の目標がまだありません。先に目標を作ってください。
+                    振り分け先のウィッシュがまだありません。先にウィッシュを登録してください。
                   </p>
                   <div className="form-actions">
                     <button className="btn-sub" onClick={requestClose}>閉じる</button>
@@ -1055,7 +1055,7 @@ export default function SavingsPage({
                         setGoalDraft({ id: null, name: '', icon: '🐷', color: '#f472b6', targetAmount: 0 })
                       }}
                     >
-                      目標を作る
+                      ウィッシュを登録
                     </button>
                   </div>
                 </>
@@ -1109,7 +1109,7 @@ export default function SavingsPage({
 
       {deleteGoal && (
         <ConfirmModal
-          message={`貯金目標「${deleteGoal.name}」を削除します。貯めた ${yen(deleteGoal.kept)} は行き先なしとして残ります。よろしいですか？`}
+          message={`ウィッシュ「${deleteGoal.name}」を削除します。貯めた ${yen(deleteGoal.kept)} は行き先なしとして残ります。よろしいですか？`}
           onCancel={() => setDeleteGoal(null)}
           onConfirm={() => { onRemoveGoals([deleteGoal.id]); setDeleteGoal(null); setGoalDraft(null) }}
         />
@@ -1134,7 +1134,7 @@ export default function SavingsPage({
 
       {confirmGoalSave && (
         <ConfirmModal
-          message={`${goalSession.removed.length}件の貯金目標を削除して並び順を保存します。貯めた分は行き先なしとして残りますが、目標は元に戻せません。よろしいですか？`}
+          message={`${goalSession.removed.length}件のウィッシュを削除して並び順を保存します。貯めた分は行き先なしとして残りますが、ウィッシュは元に戻せません。よろしいですか？`}
           confirmText="保存する"
           onCancel={() => setConfirmGoalSave(false)}
           onConfirm={commitGoalReorder}
