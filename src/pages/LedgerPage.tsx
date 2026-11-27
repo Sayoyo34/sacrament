@@ -3,7 +3,7 @@ import {
   PiArrowsClockwise, PiCalendarBlank, PiCoins, PiCreditCard,
   PiLightbulb, PiNotePencil, PiReceipt, PiSquaresFour, PiTag, PiWallet,
 } from 'react-icons/pi'
-import type { Genre, LedgerEntry, Tag, Wallet } from '../types'
+import type { Genre, LedgerEntry, PlanItem, Tag, Wallet } from '../types'
 import DetailModal, { DetailBlock, DetailRow, ReadValue } from '../components/DetailModal'
 import ConfirmModal from '../components/ConfirmModal'
 import Sheet from '../components/Sheet'
@@ -14,6 +14,8 @@ import { useEditSession } from '../useEditSession'
 import TopTabs from '../components/TopTabs'
 import { useSwipeTabs } from '../useSwipeNav'
 import { themeOf } from '../theme'
+import { monthRange, occurrencesIn, type PlanOccurrence } from '../plans'
+import { creditBillsIn, creditScheduleText, type CreditBill } from '../credit'
 import { byNewest, matchesTags, monthLabel, monthOf, thisMonth, todayStr, yen } from '../utils'
 import { firstError, positive, required, selected } from '../validation'
 
@@ -29,6 +31,10 @@ interface EntryDraft {
   genreId: string
   tagIds: string[]
   memo: string
+  /** 引き落とし予定の定期支出から記録するときの元の PlanItem */
+  planId?: string
+  /** その定期支出の登録額。金額欄に最初から入れておき、通信料など違う月は書き換えてもらう */
+  planHint?: number
 }
 
 interface WalletDraft {
@@ -38,11 +44,14 @@ interface WalletDraft {
   isCredit: boolean
   billingDay: number
   payFromWalletId: string
+  closingDay: number
+  payMonthOffset: number
 }
 
 interface Props {
   wallets: Wallet[]
   entries: LedgerEntry[]
+  planItems: PlanItem[]
   genres: Genre[]
   tags: Tag[]
   totalBalance: number
@@ -50,10 +59,15 @@ interface Props {
   onRemoveEntry: (id: string) => void
   onSaveWallet: (draft: WalletDraft) => void
   onRemoveWallet: (id: string) => void
-  onSettleCredit: (walletId: string, actualAmount: number) => void
+  onSettleCredit: (walletId: string, actualAmount: number, face?: number) => void
   onSaveGenre: (draft: LabelDraft) => string
   onSaveTag: (draft: LabelDraft) => string
   onApplyWalletEdit: (orderedIds: string[], removedIds: string[]) => void
+}
+
+/** YYYY-MM-DD → 10/16 */
+function shortDay(date: string) {
+  return `${Number(date.slice(5, 7))}/${Number(date.slice(8))}`
 }
 
 function shiftMonth(month: string, delta: number) {
@@ -63,7 +77,7 @@ function shiftMonth(month: string, delta: number) {
 }
 
 export default function LedgerPage({
-  wallets, entries, genres, tags, totalBalance,
+  wallets, entries, planItems, genres, tags, totalBalance,
   onSaveEntry, onRemoveEntry, onSaveWallet, onRemoveWallet, onSettleCredit, onSaveGenre, onSaveTag,
   onApplyWalletEdit,
 }: Props) {
@@ -76,8 +90,11 @@ export default function LedgerPage({
   const [filterTags, setFilterTags] = useState<string[]>([])
   const [entryError, setEntryError] = useState('')
   const [walletError, setWalletError] = useState('')
-  const [settleTarget, setSettleTarget] = useState<{ walletId: string; name: string; faceTotal: number } | null>(null)
+  const [settleTarget, setSettleTarget] = useState<{
+    walletId: string; name: string; faceTotal: number; partial: boolean; unrecorded: PlanOccurrence[]
+  } | null>(null)
   const [settleAmount, setSettleAmount] = useState(0)
+  const [openDue, setOpenDue] = useState(false)   // 引き落とし予定の内訳
 
   // 口座の並び替え（確定するまで下書きだけを書き換える）
   const walletSession = useEditSession<Wallet>()
@@ -105,6 +122,44 @@ export default function LedgerPage({
   const monthExpense = monthEntries
     .filter(e => e.amount < 0 && !e.transfer)
     .reduce((s, e) => s + Math.abs(e.amount), 0)
+
+  // 表示中の月の引き落とし予定（口座払いの定期支出＋クレカの請求）。
+  // カード払いの定期支出は、そのカードの締め期間の請求の中に入れて二重に数えない
+  const isThisMonth = month === thisMonth()
+  const todayDate = todayStr()
+  const creditIds = new Set(wallets.filter(w => w.isCredit).map(w => w.id))
+  const bills = creditBillsIn(wallets, entries, planItems, month, todayDate)
+  const { from: monthFrom, to: monthTo } = monthRange(month)
+  const bankOccs = occurrencesIn(planItems.filter(p => !creditIds.has(p.walletId)), entries, monthFrom, monthTo)
+  type DueRow =
+    | { kind: 'plan'; key: string; date: string; amount: number; done: boolean; occ: PlanOccurrence }
+    | { kind: 'credit'; key: string; date: string; amount: number; done: boolean; bill: CreditBill }
+  const dueRows: DueRow[] = [
+    ...bankOccs.map(o => ({
+      kind: 'plan' as const, key: `${o.plan.id}:${o.date}`, date: o.plan.dayOfMonth > 0 ? o.date : '',
+      amount: o.amount, done: o.recorded, occ: o,
+    })),
+    ...bills.map(b => ({
+      kind: 'credit' as const, key: b.wallet.id, date: b.payDate, amount: b.amount, done: b.settled, bill: b,
+    })),
+  ].sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'))
+  const dueTotal = dueRows.reduce((s, r) => s + r.amount, 0)
+  const remainingRows = dueRows.filter(r => !r.done)
+  const remainingTotal = remainingRows.reduce((s, r) => s + r.amount, 0)
+
+  /**
+   * 定期支出の1回分を記録する入力画面を開く。金額は登録額を入れておき、毎月変わるものはその場で書き換えてもらう。
+   * 支払い日が未設定のものは日付を決められないので、未来の日付にならないよう今日を上限にする
+   */
+  function recordOcc(o: PlanOccurrence) {
+    const date = o.plan.dayOfMonth === 0 && o.date > todayDate ? todayDate : o.date
+    setEntryError('')
+    setDraft({
+      id: null, label: o.plan.name, amount: o.plan.estimatedCost, type: 'expense', date,
+      walletId: o.plan.walletId, genreId: o.plan.genreId, tagIds: o.plan.tagIds, memo: '',
+      planId: o.plan.id, planHint: o.plan.estimatedCost,
+    })
+  }
 
   const filterNames = filterTags
     .map(id => tags.find(t => t.id === id)?.name)
@@ -160,7 +215,7 @@ export default function LedgerPage({
 
   function openNewWallet() {
     setWalletError('')
-    setWalletDraft({ id: null, name: '', balance: 0, isCredit: false, billingDay: 0, payFromWalletId: '' })
+    setWalletDraft({ id: null, name: '', balance: 0, isCredit: false, billingDay: 0, payFromWalletId: '', closingDay: 0, payMonthOffset: 1 })
   }
 
   function saveWallet() {
@@ -174,15 +229,28 @@ export default function LedgerPage({
     return true
   }
 
-  function openSettle(w: Wallet) {
-    const faceTotal = Math.max(0, -w.balance)
-    setSettleTarget({ walletId: w.id, name: w.name, faceTotal })
-    setSettleAmount(faceTotal)
+  /** 締め日のあるカードは今月の請求額だけを清算し、締め後の利用分は未精算に残す */
+  /** 今月の請求（未清算のもの）。締め日のないカードは未精算の全額が今月分になる */
+  function currentBill(w: Wallet) {
+    return creditBillsIn([w], entries, planItems, thisMonth(), todayStr()).find(b => !b.settled)
+  }
+
+  function settleFace(w: Wallet, bill = currentBill(w)) {
+    const owed = Math.max(0, -w.balance)
+    const face = bill && w.closingDay > 0 ? Math.min(owed, bill.recordedAmount) : owed
+    return { face, partial: face < owed }
+  }
+
+  function openSettle(w: Wallet, bill = currentBill(w)) {
+    const { face, partial } = settleFace(w, bill)
+    const unrecorded = bill?.plans.filter(o => !o.recorded) ?? []
+    setSettleTarget({ walletId: w.id, name: w.name, faceTotal: face, partial, unrecorded })
+    setSettleAmount(face)
   }
 
   function confirmSettle() {
     if (!settleTarget) return
-    onSettleCredit(settleTarget.walletId, Math.max(0, settleAmount))
+    onSettleCredit(settleTarget.walletId, Math.max(0, settleAmount), settleTarget.faceTotal)
     setSettleTarget(null)
     setWalletDraft(null)
   }
@@ -196,13 +264,22 @@ export default function LedgerPage({
         <span className="row-main">
           <span className="row-title">{w.name}</span>
           {w.isCredit && (
-            <span className="row-sub">{w.billingDay > 0 ? `毎月${w.billingDay}日引き落とし` : '引き落とし日未設定'}</span>
+            <span className="row-sub">{creditScheduleText(w)}</span>
           )}
         </span>
         <span className={`row-amount${w.balance < 0 ? ' remaining-negative' : ''}`}>
           {owed > 0 ? `未精算 ${owed.toLocaleString()}円` : `${w.balance.toLocaleString()}円`}
         </span>
       </>
+    )
+  }
+
+  /** 引き落とし予定の行の右端。済みなら状態の文字、操作できるならボタン、できなければ何も出さない */
+  function dueAction(status: string | null, onClick: (() => void) | null, label: string, fallback = '口座未設定') {
+    if (status) return <span className="due-status">{status}</span>
+    if (!onClick) return fallback ? <span className="due-status">{fallback}</span> : null
+    return (
+      <button className="due-action" style={{ background: theme.accent }} onClick={onClick}>{label}</button>
     )
   }
 
@@ -227,6 +304,83 @@ export default function LedgerPage({
               </div>
               <div className="hero-number">¥{monthExpense.toLocaleString()}</div>
             </div>
+
+            {dueRows.length > 0 && (
+              <div className="due-card">
+                <button className={`row-card${openDue ? ' group-open' : ''}`} onClick={() => setOpenDue(v => !v)}>
+                  <GenreDot genres={genres} genreId="" fallback={<PiArrowsClockwise />} />
+                  <span className="row-main">
+                    <span className="row-title">{isThisMonth ? '今月' : monthLabel(month)}の引き落とし予定</span>
+                    <span className="row-sub">
+                      {remainingRows.length > 0
+                        ? `残り ${remainingRows.length}件・${yen(remainingTotal)}`
+                        : 'すべて記録・清算済みです'}
+                      {bills.some(b => b.open) && '・締め前の分あり'}
+                    </span>
+                  </span>
+                  <span className="row-amount">{dueTotal.toLocaleString()}円</span>
+                  <span className="row-chevron">{openDue ? '⌃' : '⌄'}</span>
+                </button>
+                {openDue && (
+                  <ul className="item-list sub-list">
+                    {dueRows.map(r => (
+                      <li key={r.key}>
+                        {r.kind === 'plan' ? (
+                          <div className={`row-card due-row${r.done ? ' done' : ''}`}>
+                            <GenreDot genres={genres} genreId={r.occ.plan.genreId} fallback={<PiArrowsClockwise />} />
+                            <span className="row-main">
+                              <span className="row-title">{r.occ.plan.name}</span>
+                              <span className="row-sub">
+                                {r.date ? shortDay(r.date) : '日付未設定'}・{wallets.find(w => w.id === r.occ.plan.walletId)?.name ?? '口座未設定'}
+                                {!r.done && '・金額は目安'}
+                              </span>
+                            </span>
+                            <span className="row-amount">{r.amount.toLocaleString()}円</span>
+                            {dueAction(r.done ? '記録済み' : null, r.occ.plan.walletId ? () => recordOcc(r.occ) : null, '記録')}
+                          </div>
+                        ) : (
+                          <>
+                            <div className={`row-card due-row${r.done ? ' done' : ''}`}>
+                              <GenreDot genres={genres} genreId="" fallback={<PiCreditCard />} />
+                              <span className="row-main">
+                                <span className="row-title">{r.bill.wallet.name}</span>
+                                <span className="row-sub">
+                                  {r.date ? shortDay(r.date) : '日付未設定'}
+                                  {r.bill.period
+                                    ? `・${shortDay(r.bill.period.from)}〜${shortDay(r.bill.period.to)}の利用分${r.bill.open ? '（締め前）' : ''}`
+                                    : '・未精算の全額'}
+                                </span>
+                              </span>
+                              <span className="row-amount">{r.amount.toLocaleString()}円</span>
+                              {dueAction(
+                                r.done ? '清算済み' : r.bill.open ? '締め前' : null,
+                                isThisMonth && r.bill.wallet.payFromWalletId ? () => openSettle(r.bill.wallet, r.bill) : null,
+                                '清算',
+                                isThisMonth ? '引き落とし元未設定' : '',
+                              )}
+                            </div>
+                            {r.bill.plans.length > 0 && (
+                              <ul className="due-nested">
+                                {r.bill.plans.map(o => (
+                                  <li key={`${o.plan.id}:${o.date}`} className={`due-nested-row${o.recorded || r.done ? ' done' : ''}`}>
+                                    <span className="row-main">
+                                      <span className="row-title">{o.plan.name}</span>
+                                      <span className="row-sub">{o.plan.dayOfMonth > 0 ? shortDay(o.date) : '日付未設定'}・カード払い{!o.recorded && '・金額は目安'}</span>
+                                    </span>
+                                    <span className="row-amount">{o.amount.toLocaleString()}円</span>
+                                    {dueAction(o.recorded ? '記録済み' : r.done ? '—' : null, () => recordOcc(o), '記録')}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
 
             <div className="section-header">
               <h3>{monthLabel(month)}</h3>
@@ -319,6 +473,7 @@ export default function LedgerPage({
                         setWalletDraft({
                           id: w.id, name: w.name, balance: w.balance,
                           isCredit: w.isCredit, billingDay: w.billingDay, payFromWalletId: w.payFromWalletId,
+                          closingDay: w.closingDay, payMonthOffset: w.payMonthOffset,
                         })
                       }}
                     >
@@ -331,7 +486,8 @@ export default function LedgerPage({
           </>
         )}
 
-        {!walletSession.editing && (
+        {/* 引き落とし予定を開いている間は、右端の「記録」「清算」ボタンに重ならないよう＋を隠す（閉じれば戻る） */}
+        {!walletSession.editing && !(tab === 'ledger' && openDue) && (
           <div className="fab-row">
             <button
               className="fab"
@@ -383,9 +539,16 @@ export default function LedgerPage({
               type="number"
               value={draft.amount || ''}
               onChange={e => setDraft({ ...draft, amount: Number(e.target.value) })}
-              placeholder="0"
+              placeholder={draft.planHint ? `目安 ${draft.planHint.toLocaleString()}` : '0'}
               min={0}
             />
+            {draft.planHint !== undefined && draft.planHint > 0 && (
+              <p className="summary" style={{ marginTop: '0.4rem' }}>
+                {draft.amount === draft.planHint
+                  ? '登録額を入れています。今月の額が違えば書き換えてください'
+                  : `登録額は${yen(draft.planHint)}です`}
+              </p>
+            )}
           </DetailRow>
 
           <DetailRow icon={<PiCalendarBlank />} label="日付" value={<ReadValue>{draft.date}</ReadValue>}>
@@ -495,6 +658,42 @@ export default function LedgerPage({
             <>
               <DetailRow
                 icon={<PiCalendarBlank />}
+                label="締め日"
+                value={
+                  <ReadValue muted={walletDraft.closingDay === 0}>
+                    {walletDraft.closingDay === 0 ? '未設定' : walletDraft.closingDay >= 31 ? '月末' : `毎月${walletDraft.closingDay}日`}
+                  </ReadValue>
+                }
+              >
+                <input
+                  type="number"
+                  value={walletDraft.closingDay || ''}
+                  onChange={e => setWalletDraft({ ...walletDraft, closingDay: Number(e.target.value) })}
+                  placeholder="毎月◯日（月末は31・任意）"
+                  min={1}
+                  max={31}
+                />
+              </DetailRow>
+
+              <DetailRow
+                icon={<PiArrowsClockwise />}
+                label="支払い月"
+                value={<ReadValue>{walletDraft.payMonthOffset === 2 ? '締めた翌々月' : '締めた翌月'}</ReadValue>}
+              >
+                <div className="type-toggle">
+                  <button
+                    className={walletDraft.payMonthOffset === 2 ? 'btn-sub' : ''}
+                    onClick={() => setWalletDraft({ ...walletDraft, payMonthOffset: 1 })}
+                  >翌月</button>
+                  <button
+                    className={walletDraft.payMonthOffset !== 2 ? 'btn-sub' : ''}
+                    onClick={() => setWalletDraft({ ...walletDraft, payMonthOffset: 2 })}
+                  >翌々月</button>
+                </div>
+              </DetailRow>
+
+              <DetailRow
+                icon={<PiCalendarBlank />}
                 label="引き落とし日"
                 value={
                   <ReadValue muted={walletDraft.billingDay === 0}>
@@ -533,9 +732,11 @@ export default function LedgerPage({
               </DetailRow>
 
               {walletDraft.balance < 0 && (() => {
+                const saved = wallets.find(w => w.id === walletDraft.id)
+                const { face, partial } = saved ? settleFace(saved) : { face: -walletDraft.balance, partial: false }
                 const settleBody = walletDraft.payFromWalletId ? (
-                  <button className="btn-sub" style={{ width: '100%' }} onClick={() => openSettle(wallets.find(w => w.id === walletDraft.id)!)}>
-                    未精算 {yen(-walletDraft.balance)} を清算する
+                  <button className="btn-sub" style={{ width: '100%' }} onClick={() => saved && openSettle(saved)}>
+                    {partial ? `今月の請求 ${yen(face)}` : `未精算 ${yen(face)}`} を清算する
                   </button>
                 ) : (
                   <p className="summary">清算するには、先に「引き落とし元の口座」を設定してください</p>
@@ -557,8 +758,19 @@ export default function LedgerPage({
             <>
               <div className="modal-title">清算 - {settleTarget.name}</div>
               <p className="summary" style={{ marginBottom: '0.75rem' }}>
-                未精算の合計 {yen(settleTarget.faceTotal)}
+                {settleTarget.partial ? '今月の請求額' : '未精算の合計'} {yen(settleTarget.faceTotal)}
               </p>
+              {settleTarget.partial && (
+                <p className="summary" style={{ marginBottom: '0.75rem' }}>
+                  締め日より後に使った分は来月の請求として残ります
+                </p>
+              )}
+              {settleTarget.unrecorded.length > 0 && (
+                <p className="summary remaining-negative" style={{ marginBottom: '0.75rem' }}>
+                  まだ記録していない定期支出があります（{settleTarget.unrecorded.map(o => o.plan.name).join('、')}）。
+                  先に引き落とし予定から記録すると、請求額に含まれます
+                </p>
+              )}
               <div className="form-row">
                 <label>実際に引き落とされた額</label>
                 <input

@@ -1,21 +1,28 @@
 import { useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import type { Genre, Tag } from '../types'
+import type { Genre, PlanItem, Tag, Wallet } from '../types'
 import ConfirmModal from '../components/ConfirmModal'
 import LabelListPage, { type LabelDraft } from '../components/LabelListPage'
 import SubPage from '../components/SubPage'
+import PlanListPage from '../components/PlanListPage'
+import type { PlanDraft } from '../plans'
 import { themeOf } from '../theme'
 import { CONTACT_FORM_URL } from '../config'
 
-type View = 'menu' | 'genres' | 'tags'
+type View = 'menu' | 'plans' | 'genres' | 'tags'
 
 interface Props {
   genres: Genre[]
   tags: Tag[]
-  onSaveGenre: (draft: LabelDraft) => void
+  planItems: PlanItem[]
+  wallets: Wallet[]
+  onSavePlan: (draft: PlanDraft) => void
+  onRemovePlan: (id: string) => void
+  onApplyPlanEdit: (orderedIds: string[], removedIds: string[]) => void
+  onSaveGenre: (draft: LabelDraft) => string
   onRemoveGenres: (ids: string[]) => void
   onApplyGenreEdit: (orderedIds: string[], removedIds: string[]) => void
-  onSaveTag: (draft: LabelDraft) => void
+  onSaveTag: (draft: LabelDraft) => string
   onRemoveTags: (ids: string[]) => void
   onApplyTagEdit: (orderedIds: string[], removedIds: string[]) => void
   onReset: () => void
@@ -31,7 +38,7 @@ interface Props {
 }
 
 export default function MorePage({
-  genres, tags, onSaveGenre, onRemoveGenres, onApplyGenreEdit,
+  genres, tags, planItems, wallets, onSavePlan, onRemovePlan, onApplyPlanEdit, onSaveGenre, onRemoveGenres, onApplyGenreEdit,
   onSaveTag, onRemoveTags, onApplyTagEdit, onReset,
   hasSupabase, session, onSignIn, onPasswordSignIn, onSetPassword, onSignOut, syncPending, onOpenSyncConflict,
 }: Props) {
@@ -96,6 +103,12 @@ export default function MorePage({
 
       <div className="page-scroll">
         <div className="card menu-card">
+          <button className="menu-row" onClick={() => setView('plans')}>
+            <span className="menu-dot" style={{ background: '#fbd0e0' }} />
+            <span className="menu-label">定期支出</span>
+            <span className="menu-meta">{planItems.length}件</span>
+            <span className="menu-chevron">›</span>
+          </button>
           <button className="menu-row" onClick={() => setView('genres')}>
             <span className="menu-dot" style={{ background: '#fbd0e0' }} />
             <span className="menu-label">ジャンル管理</span>
@@ -193,6 +206,24 @@ export default function MorePage({
           <p className="summary" style={{ textAlign: 'center', padding: '0.5rem 0' }}>{notice}</p>
         )}
       </div>
+
+      {view === 'plans' && (
+        <SubPage title="定期支出" accent={theme.accent} soft={theme.soft} onClose={() => setView('menu')}>
+          <PlanListPage
+            planItems={planItems}
+            wallets={wallets}
+            genres={genres}
+            tags={tags}
+            accent={theme.accent}
+            soft={theme.soft}
+            onSavePlan={onSavePlan}
+            onRemovePlan={onRemovePlan}
+            onApplyPlanEdit={onApplyPlanEdit}
+            onSaveGenre={onSaveGenre}
+            onSaveTag={onSaveTag}
+          />
+        </SubPage>
+      )}
 
       {view === 'genres' && (
         <SubPage title="ジャンル管理" accent={theme.accent} soft={theme.soft} onClose={() => setView('menu')}>

@@ -5,6 +5,8 @@ export interface Wallet {
   isCredit: boolean;      // true = クレカなどの後払い口座
   billingDay: number;     // 引き落とし日 1-31, 0 = 未設定。isCredit のみ使う
   payFromWalletId: string; // 引き落とし元の口座。isCredit のみ使う。'' = 未設定
+  closingDay: number;     // 締め日 1-31（31 = 月末）, 0 = 未設定。isCredit のみ使う
+  payMonthOffset: number; // 締めた月から何か月後に引き落とされるか（1 = 翌月, 2 = 翌々月）。isCredit のみ使う
 }
 
 /** 項目の分類。1項目に1つだけ付き、色を持つ。分析の円グラフはこの軸で集計する */
@@ -32,6 +34,7 @@ export interface LedgerEntry {
   tagIds: string[];
   memo: string;
   transfer: boolean;  // true = 口座間の振替（クレカの引き落としなど）。収支・ジャンル分析からは除く
+  planId?: string;    // 定期支出から記録したときの元の PlanItem。その回が記録済みかの判定に使う
 }
 
 /** 固定額の定期支出。クレジットカードは口座（Wallet）側の isCredit で扱う */

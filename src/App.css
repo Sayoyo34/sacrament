@@ -145,6 +145,40 @@
   color: #1a1a2e;
 }
 
+/* 家計簿：ヒーロー下の引き落とし予定 */
+.due-card { margin: -0.25rem 0 1rem; }
+.due-card > .row-card { width: 100%; }
+.due-row.done, .due-nested-row.done { opacity: 0.5; }
+.due-action {
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.due-status {
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--text);
+}
+/* カード払いの定期支出：カードの請求の下にぶら下げる */
+.due-nested {
+  list-style: none;
+  margin: -0.15rem 0 0.4rem 1.25rem;
+  padding: 0 0 0 0.6rem;
+  border-left: 2px dashed var(--border);
+}
+.due-nested-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.25rem;
+}
+.due-nested-row .row-title { font-size: 0.85rem; }
+
 /* マスキングテープ風のアクセント（Figma案通り：角に貼ったシール） */
 .hero-card::after {
   content: '';
